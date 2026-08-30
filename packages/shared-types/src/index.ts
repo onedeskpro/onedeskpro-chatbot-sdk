@@ -38,6 +38,7 @@ export interface ChatRequest {
 
 export interface ChatResponseData {
   text: string;
+  sessionId: string;
 }
 
 export interface ChatMessage {
@@ -51,14 +52,13 @@ export interface ChatMessage {
 
 // ─── Readiness ────────────────────────────────────────────────────────────────
 
-export type ChatbotBlockReason = 'no-origin' | 'no-prompt' | null;
+export type ChatbotBlockReason = 'no-prompt' | 'no-directories' | null;
 
-export interface ChatbotSettingsResponse {
-  origin: string | null;
-}
-
-export interface KnowledgeBaseResponse {
-  systemMessage: string | null;
+export interface SdkConfigResponse {
+  agentId: string;
+  agentName: string;
+  ready: boolean;
+  blockReason: ChatbotBlockReason;
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────

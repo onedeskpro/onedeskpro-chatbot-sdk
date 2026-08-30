@@ -3,7 +3,7 @@ import { ChatbotProvider, useChatbot } from "@typetechit/chatbot-react";
 import type { ChatMessage } from "@typetechit/chatbot-types";
 
 const API_KEY = import.meta.env["VITE_CHATBOT_API_KEY"] ?? "";
-const BASE_URL = "https://api.chatbot.typetechit.com";
+const BASE_URL = "http://localhost:8080";
 
 // ─── Custom chat UI built on useChatbot() ─────────────────────────────────────
 
@@ -519,7 +519,7 @@ export default function App() {
   return (
     <ChatbotProvider
       apiKey="ak_your_key"
-      apiBaseUrl="https://api.chatbot.typetechit.com"
+      apiBaseUrl="http://localhost:8080"
     >
       <MyChatUI />
     </ChatbotProvider>

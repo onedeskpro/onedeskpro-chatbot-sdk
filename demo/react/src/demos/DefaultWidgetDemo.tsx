@@ -2,7 +2,7 @@ import React from "react";
 import { ChatbotProvider, ChatbotWidget } from "@typetechit/chatbot-react";
 
 const API_KEY = import.meta.env["VITE_CHATBOT_API_KEY"] ?? "";
-const BASE_URL = "https://api.chatbot.typetechit.com";
+const BASE_URL = "http://localhost:8080";
 
 export function DefaultWidgetDemo() {
   return (
@@ -31,7 +31,7 @@ function App() {
   return (
     <ChatbotProvider
       apiKey="ak_your_key"
-      apiBaseUrl="https://api.chatbot.typetechit.com"
+      apiBaseUrl="http://localhost:8080"
       chatbotName="TypeTechIT Assistant"
       primaryColor="#2563EB"
       theme="auto"
@@ -132,7 +132,7 @@ const CONFIG_ROWS = [
   [
     "apiBaseUrl",
     "string",
-    "https://api.chatbot.typetechit.com",
+    "http://localhost:8080",
     "Base URL of the TypeTechIT API.",
   ],
   [
