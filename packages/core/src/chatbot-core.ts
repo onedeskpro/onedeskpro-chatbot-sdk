@@ -14,7 +14,7 @@ type Listener<K extends keyof ChatbotEventMap> =
   ChatbotEventMap[K] extends void ? () => void : (payload: ChatbotEventMap[K]) => void;
 
 const DEFAULTS = {
-  apiBaseUrl: 'https://api.chatbot.typetechit.com',
+  apiBaseUrl: 'http://localhost:8080',
   chatbotName: 'AI Assistant',
   primaryColor: '#2563EB',
   theme: 'auto' as const,
@@ -31,6 +31,7 @@ export class ChatbotCore {
   private session = new SessionManager();
   private widget: ChatWidget | null = null;
   private options!: Required<ChatbotInitOptions>;
+  private callerSetName = false;
 
   private _state: ChatbotState = {
     isOpen: false,
@@ -43,6 +44,7 @@ export class ChatbotCore {
   };
 
   async init(options: ChatbotInitOptions): Promise<void> {
+    this.callerSetName = options.chatbotName !== undefined;
     this.options = { ...DEFAULTS, ...options };
 
     this.apiClient = new ApiClient({
@@ -68,9 +70,6 @@ export class ChatbotCore {
       });
     }
 
-    // Warm CSRF token eagerly (non-blocking)
-    void this.apiClient.warmCsrf();
-
     const blockReason = await this.checkReadiness();
     this._state.blockReason = blockReason;
     this._state.isReady = blockReason === null;
@@ -87,18 +86,11 @@ export class ChatbotCore {
 
   private async checkReadiness(): Promise<ChatbotBlockReason> {
     try {
-      const [settingsResult, kbResult] = await Promise.allSettled([
-        this.apiClient.fetchSettings(),
-        this.apiClient.fetchKnowledgeBase(),
-      ]);
-
-      const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
-      if (!settings?.origin) return 'no-origin';
-
-      const kb = kbResult.status === 'fulfilled' ? kbResult.value : null;
-      if (!kb?.systemMessage?.trim()) return 'no-prompt';
-
-      return null;
+      const config = await this.apiClient.fetchConfig();
+      if (!this.callerSetName && config.agentName.trim()) {
+        this.options.chatbotName = config.agentName;
+      }
+      return config.blockReason;
     } catch {
       // Network failure — don't block the user, let them try
       return null;

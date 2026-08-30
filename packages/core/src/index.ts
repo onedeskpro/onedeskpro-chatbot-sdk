@@ -11,6 +11,8 @@ export type {
   ApiResponse,
   ChatRequest,
   ChatResponseData,
+  SdkConfigResponse,
+  ChatbotBlockReason,
 } from '@typetechit/chatbot-types';
 
 // ─── IIFE / CDN global singleton ──────────────────────────────────────────────

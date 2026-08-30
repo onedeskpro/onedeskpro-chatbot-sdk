@@ -228,6 +228,10 @@ export class ChatWidget {
     this.messagesContainer.innerHTML = '';
     this.input.disabled = false;
     this.sendBtn.disabled = false;
+    const title = this.shadow.querySelector('.ttcb-header-title');
+    if (title && options.chatbotName) {
+      title.textContent = options.chatbotName;
+    }
     if (options.welcomeMessage) {
       this.appendMessage({ type: 'ai', content: options.welcomeMessage });
     } else {
@@ -238,23 +242,32 @@ export class ChatWidget {
   showBlocked(reason: ChatbotBlockReason): void {
     this.messagesContainer.innerHTML = '';
 
-    const isNoOrigin = reason === 'no-origin';
     const blocked = document.createElement('div');
     blocked.className = 'ttcb-blocked';
 
     const iconEl = document.createElement('div');
     iconEl.className = 'ttcb-blocked-icon';
-    iconEl.innerHTML = isNoOrigin ? settingsIcon() : fileTextIcon();
 
     const title = document.createElement('p');
     title.className = 'ttcb-blocked-title';
-    title.textContent = isNoOrigin ? 'Chatbot Settings Required' : 'Business Context Required';
-
     const desc = document.createElement('p');
     desc.className = 'ttcb-blocked-desc';
-    desc.textContent = isNoOrigin
-      ? 'The chatbot has not been configured yet. Please set it up in the admin panel.'
-      : 'Business context is missing. Please add your business information in the admin panel.';
+
+    if (reason === 'no-prompt') {
+      iconEl.innerHTML = fileTextIcon();
+      title.textContent = 'Business Context Required';
+      desc.textContent = 'Add a system prompt for this agent in the admin panel.';
+    } else if (reason === 'no-directories') {
+      iconEl.innerHTML = fileTextIcon();
+      title.textContent = 'Knowledge Base Required';
+      desc.textContent =
+        'Assign at least one knowledge-base directory to this agent in the admin panel.';
+    } else {
+      iconEl.innerHTML = settingsIcon();
+      title.textContent = 'Chatbot Settings Required';
+      desc.textContent =
+        'The chatbot has not been configured yet. Please set it up in the admin panel.';
+    }
 
     blocked.appendChild(iconEl);
     blocked.appendChild(title);
