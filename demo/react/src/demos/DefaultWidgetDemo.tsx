@@ -1,8 +1,7 @@
 import React from "react";
-import { ChatbotProvider, ChatbotWidget } from "@typetechit/chatbot-react";
-
-const API_KEY = import.meta.env["VITE_CHATBOT_API_KEY"] ?? "";
-const BASE_URL = "http://localhost:8080";
+import { ChatbotProvider, ChatbotWidget } from "@onedeskpro/chatbot-react";
+import { DEFAULT_API_BASE_URL } from "@onedeskpro/chatbot-core";
+import { CHATBOT_API_BASE_URL, CHATBOT_API_KEY } from "../chatbot-config";
 
 export function DefaultWidgetDemo() {
   return (
@@ -13,7 +12,7 @@ export function DefaultWidgetDemo() {
         description="The SDK injects a self-contained chat widget into the bottom-right corner via Shadow DOM. It doesn't affect your styles."
       >
         <Card>
-          {!API_KEY ? (
+          {!CHATBOT_API_KEY ? (
             <Callout type="warning">
               Copy <code>.env.local.example</code> → <code>.env.local</code> and
               set <code>VITE_CHATBOT_API_KEY</code> to see the live widget.
@@ -25,14 +24,14 @@ export function DefaultWidgetDemo() {
             </Callout>
           )}
 
-          <CodeBlock>{`import { ChatbotProvider, ChatbotWidget } from '@typetechit/chatbot-react';
+          <CodeBlock>{`import { ChatbotProvider, ChatbotWidget } from '@onedeskpro/chatbot-react';
 
 function App() {
   return (
     <ChatbotProvider
       apiKey="ak_your_key"
-      apiBaseUrl="http://localhost:8080"
-      chatbotName="TypeTechIT Assistant"
+      apiBaseUrl="${DEFAULT_API_BASE_URL}"
+      chatbotName="Onedesk Pro Assistant"
       primaryColor="#2563EB"
       theme="auto"
       position="bottom-right"
@@ -109,11 +108,11 @@ function App() {
       </Section>
 
       {/* Live widget — only mounts when API key is present */}
-      {API_KEY && (
+      {CHATBOT_API_KEY && (
         <ChatbotProvider
-          apiKey={API_KEY}
-          apiBaseUrl={BASE_URL}
-          chatbotName="TypeTechIT Assistant"
+          apiKey={CHATBOT_API_KEY}
+          apiBaseUrl={CHATBOT_API_BASE_URL}
+          chatbotName="Onedesk Pro Assistant"
           primaryColor="#2563EB"
           theme="auto"
           position="bottom-right"
@@ -132,8 +131,8 @@ const CONFIG_ROWS = [
   [
     "apiBaseUrl",
     "string",
-    "http://localhost:8080",
-    "Base URL of the TypeTechIT API.",
+    DEFAULT_API_BASE_URL,
+    "Base URL of the Onedesk Pro API.",
   ],
   [
     "chatbotName",

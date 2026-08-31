@@ -1,7 +1,7 @@
 {
-  "name": "@typetechit/chatbot-core",
+  "name": "@onedeskpro/chatbot-core",
   "version": "0.1.0",
-  "description": "Framework-independent core for TypeTechIT Chatbot SDK",
+  "description": "Framework-independent core for Onedesk Pro Chatbot SDK",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,7 +20,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@typetechit/chatbot-types": "workspace:*"
+    "@onedeskpro/chatbot-types": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { ChatbotBlockReason, ChatMessage, ChatbotState } from '@typetechit/chatbot-types';
+import type { ChatbotBlockReason, ChatMessage, ChatbotState } from '@onedeskpro/chatbot-types';
 import { useChatbotContext } from '../context';
 
 export interface UseChatbotReturn {

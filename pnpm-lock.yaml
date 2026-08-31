@@ -17,10 +17,13 @@ importers:
 
   demo/react:
     dependencies:
-      '@typetechit/chatbot-react':
+      '@onedeskpro/chatbot-core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@onedeskpro/chatbot-react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@typetechit/chatbot-types':
+      '@onedeskpro/chatbot-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
       react:
@@ -48,7 +51,7 @@ importers:
 
   packages/core:
     dependencies:
-      '@typetechit/chatbot-types':
+      '@onedeskpro/chatbot-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -64,10 +67,10 @@ importers:
 
   packages/react:
     dependencies:
-      '@typetechit/chatbot-core':
+      '@onedeskpro/chatbot-core':
         specifier: workspace:*
         version: link:../core
-      '@typetechit/chatbot-types':
+      '@onedeskpro/chatbot-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:

@@ -35,7 +35,7 @@ export default function App() {
             </svg>
           </div>
           <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--gray-900)' }}>
-            TypeTechIT Chatbot
+            Onedesk Pro Chatbot
           </span>
           <span style={{
             background: 'var(--brand-light)',

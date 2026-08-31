@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatbotBlockReason, ChatbotInitOptions } from '@typetechit/chatbot-types';
+import type { ChatMessage, ChatbotBlockReason, ChatbotInitOptions } from '@onedeskpro/chatbot-types';
 import { buildStyles } from './styles';
 import { buildMessageEl, botIcon, buildTypingIndicator, chatIcon, closeIcon, fileTextIcon, newSessionIcon, sendIcon, settingsIcon } from './render';
 
@@ -28,7 +28,7 @@ export class ChatWidget {
 
   private mount(options: ChatbotInitOptions): void {
     this.host = document.createElement('div');
-    this.host.id = 'typetechit-chatbot-host';
+    this.host.id = 'onedeskpro-chatbot-host';
     this.shadow = this.host.attachShadow({ mode: 'closed' });
 
     const styleEl = document.createElement('style');

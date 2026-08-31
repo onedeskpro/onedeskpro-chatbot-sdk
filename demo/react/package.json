@@ -9,8 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@typetechit/chatbot-react": "workspace:*",
-    "@typetechit/chatbot-types": "workspace:*",
+    "@onedeskpro/chatbot-core": "workspace:*",
+    "@onedeskpro/chatbot-react": "workspace:*",
+    "@onedeskpro/chatbot-types": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

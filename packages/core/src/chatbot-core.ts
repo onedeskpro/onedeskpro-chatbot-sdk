@@ -4,8 +4,9 @@ import type {
   ChatbotInitOptions,
   ChatbotState,
   ChatMessage,
-} from '@typetechit/chatbot-types';
+} from '@onedeskpro/chatbot-types';
 import { ApiClient } from './api-client';
+import { DEFAULT_API_BASE_URL } from './constants';
 import { EventEmitter } from './event-emitter';
 import { SessionManager } from './session-manager';
 import { ChatWidget } from './widget/widget';
@@ -14,7 +15,7 @@ type Listener<K extends keyof ChatbotEventMap> =
   ChatbotEventMap[K] extends void ? () => void : (payload: ChatbotEventMap[K]) => void;
 
 const DEFAULTS = {
-  apiBaseUrl: 'http://localhost:8080',
+  apiBaseUrl: DEFAULT_API_BASE_URL,
   chatbotName: 'AI Assistant',
   primaryColor: '#2563EB',
   theme: 'auto' as const,

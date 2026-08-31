@@ -1,7 +1,7 @@
 {
-  "name": "@typetechit/chatbot-react",
+  "name": "@onedeskpro/chatbot-react",
   "version": "0.1.0",
-  "description": "React SDK for TypeTechIT Chatbot",
+  "description": "React SDK for Onedesk Pro Chatbot",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,8 +25,8 @@
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@typetechit/chatbot-core": "workspace:*",
-    "@typetechit/chatbot-types": "workspace:*"
+    "@onedeskpro/chatbot-core": "workspace:*",
+    "@onedeskpro/chatbot-types": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
