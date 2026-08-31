@@ -1,4 +1,5 @@
 export { ChatbotCore } from './chatbot-core';
+export { DEFAULT_API_BASE_URL } from './constants';
 export { ApiClient } from './api-client';
 export { EventEmitter } from './event-emitter';
 export { SessionManager } from './session-manager';
@@ -13,18 +14,18 @@ export type {
   ChatResponseData,
   SdkConfigResponse,
   ChatbotBlockReason,
-} from '@typetechit/chatbot-types';
+} from '@onedeskpro/chatbot-types';
 
 // ─── IIFE / CDN global singleton ──────────────────────────────────────────────
-// Vite builds the IIFE with name 'TypeTechITChatbot', making this
-// available as window.TypeTechITChatbot in script-tag usage.
+// Vite builds the IIFE with name 'OnedeskProChatbot', making this
+// available as window.OnedeskProChatbot in script-tag usage.
 
 import { ChatbotCore } from './chatbot-core';
-import type { ChatbotInitOptions } from '@typetechit/chatbot-types';
+import type { ChatbotInitOptions } from '@onedeskpro/chatbot-types';
 
 let _instance: ChatbotCore | null = null;
 
-export const TypeTechITChatbot = {
+export const OnedeskProChatbot = {
   async init(options: ChatbotInitOptions): Promise<ChatbotCore> {
     _instance = new ChatbotCore();
     await _instance.init(options);

@@ -1,7 +1,7 @@
 {
-  "name": "@typetechit/chatbot-types",
+  "name": "@onedeskpro/chatbot-types",
   "version": "0.1.0",
-  "description": "Shared TypeScript types for TypeTechIT Chatbot SDK",
+  "description": "Shared TypeScript types for Onedesk Pro Chatbot SDK",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

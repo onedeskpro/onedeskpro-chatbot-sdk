@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ChatbotCore } from '@typetechit/chatbot-core';
+import type { ChatbotCore } from '@onedeskpro/chatbot-core';
 
 export const ChatbotContext = createContext<ChatbotCore | null>(null);
 

@@ -1,9 +1,8 @@
 import React, { useRef, useEffect } from "react";
-import { ChatbotProvider, useChatbot } from "@typetechit/chatbot-react";
-import type { ChatMessage } from "@typetechit/chatbot-types";
-
-const API_KEY = import.meta.env["VITE_CHATBOT_API_KEY"] ?? "";
-const BASE_URL = "http://localhost:8080";
+import { ChatbotProvider, useChatbot } from "@onedeskpro/chatbot-react";
+import type { ChatMessage } from "@onedeskpro/chatbot-types";
+import { DEFAULT_API_BASE_URL } from "@onedeskpro/chatbot-core";
+import { CHATBOT_API_BASE_URL, CHATBOT_API_KEY } from "../chatbot-config";
 
 // ─── Custom chat UI built on useChatbot() ─────────────────────────────────────
 
@@ -66,7 +65,7 @@ function CustomChat() {
           <div
             style={{ fontWeight: 600, fontSize: 14, color: "var(--gray-900)" }}
           >
-            TypeTechIT Assistant
+            Onedesk Pro Assistant
           </div>
           <div style={{ fontSize: 11, color: "#22C55E", fontWeight: 500 }}>
             ● Online
@@ -327,7 +326,7 @@ export function HeadlessDemo() {
         </p>
       </div>
 
-      {!API_KEY ? (
+      {!CHATBOT_API_KEY ? (
         <div
           style={{
             background: "#FFFBEB",
@@ -365,11 +364,11 @@ export function HeadlessDemo() {
           >
             Live preview
           </h3>
-          {API_KEY ? (
+          {CHATBOT_API_KEY ? (
             <ChatbotProvider
-              apiKey={API_KEY}
-              apiBaseUrl={BASE_URL}
-              chatbotName="TypeTechIT Assistant"
+              apiKey={CHATBOT_API_KEY}
+              apiBaseUrl={CHATBOT_API_BASE_URL}
+              chatbotName="Onedesk Pro Assistant"
               welcomeMessage="Hello! How can I help you today?"
             >
               <CustomChat />
@@ -484,7 +483,7 @@ const HOOK_FIELDS: [string, string, string][] = [
 ];
 
 const CODE_SNIPPET = `import { ChatbotProvider, useChatbot }
-  from '@typetechit/chatbot-react';
+  from '@onedeskpro/chatbot-react';
 
 function MyChatUI() {
   const {
@@ -519,7 +518,7 @@ export default function App() {
   return (
     <ChatbotProvider
       apiKey="ak_your_key"
-      apiBaseUrl="http://localhost:8080"
+      apiBaseUrl="${DEFAULT_API_BASE_URL}"
     >
       <MyChatUI />
     </ChatbotProvider>

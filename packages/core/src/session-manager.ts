@@ -1,4 +1,4 @@
-const SESSION_KEY = 'typetechit_chatbot_session_id';
+const SESSION_KEY = 'onedeskpro_chatbot_session_id';
 
 export class SessionManager {
   private sessionId: string | null = null;

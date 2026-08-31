@@ -1,4 +1,4 @@
-import type { ChatbotEventMap } from '@typetechit/chatbot-types';
+import type { ChatbotEventMap } from '@onedeskpro/chatbot-types';
 
 type Listener<T> = T extends void ? () => void : (payload: T) => void;
 

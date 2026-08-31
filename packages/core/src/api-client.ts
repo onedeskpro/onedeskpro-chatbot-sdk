@@ -5,7 +5,7 @@ import type {
   ChatRequest,
   ChatResponseData,
   SdkConfigResponse,
-} from '@typetechit/chatbot-types';
+} from '@onedeskpro/chatbot-types';
 
 interface ApiClientOptions {
   baseUrl: string;

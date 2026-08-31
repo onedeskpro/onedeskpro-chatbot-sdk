@@ -1,5 +1,5 @@
 {
-  "name": "typetechit-chatbot-sdk",
+  "name": "onedesk-pro-chatbot-sdk",
   "private": true,
   "scripts": {
     "build": "turbo run build",

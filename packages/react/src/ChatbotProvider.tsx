@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, type ReactNode } from 'react';
-import { ChatbotCore } from '@typetechit/chatbot-core';
-import type { ChatbotInitOptions } from '@typetechit/chatbot-types';
+import { ChatbotCore } from '@onedeskpro/chatbot-core';
+import type { ChatbotInitOptions } from '@onedeskpro/chatbot-types';
 import { ChatbotContext } from './context';
 
 export type ChatbotProviderProps = ChatbotInitOptions & {

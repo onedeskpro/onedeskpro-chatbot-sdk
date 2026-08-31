@@ -15,4 +15,4 @@ export type {
   ChatbotState,
   ChatMessage,
   ChatbotEventMap,
-} from '@typetechit/chatbot-types';
+} from '@onedeskpro/chatbot-types';
