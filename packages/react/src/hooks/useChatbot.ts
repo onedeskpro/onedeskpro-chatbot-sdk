@@ -25,34 +25,16 @@ export function useChatbot(): UseChatbotReturn {
   const [state, setState] = useState<ChatbotState>(() => instance.getState());
 
   useEffect(() => {
-    // Keep local state in sync with core instance events
-    const offMessage = instance.on('message', () => {
-      setState({ ...instance.getState() });
-    });
-    const offOpen = instance.on('open', () => {
-      setState((s) => ({ ...s, isOpen: true }));
-    });
-    const offClose = instance.on('close', () => {
-      setState((s) => ({ ...s, isOpen: false }));
-    });
-    const offError = instance.on('error', () => {
-      setState({ ...instance.getState() });
-    });
-    const offReset = instance.on('session-reset', () => {
-      setState({ ...instance.getState() });
-    });
-    const offReady = instance.on('ready', () => {
-      setState({ ...instance.getState() });
-    });
+    // `state-change` fires for every state transition, so one subscription keeps
+    // React in sync with all of them — including the optimistic user message and
+    // the `isLoading` flip, which have no event of their own.
+    const off = instance.on('state-change', (next) => setState({ ...next }));
 
-    return () => {
-      offMessage();
-      offOpen();
-      offClose();
-      offError();
-      offReset();
-      offReady();
-    };
+    // The instance may have moved on between the useState initialiser and this
+    // effect (init() is async), so re-read once on subscribe.
+    setState({ ...instance.getState() });
+
+    return off;
   }, [instance]);
 
   const sendMessage = useCallback(

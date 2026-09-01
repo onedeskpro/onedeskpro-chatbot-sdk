@@ -17,6 +17,7 @@ export class ChatWidget {
   private input!: HTMLInputElement;
   private sendBtn!: HTMLButtonElement;
   private isOpen: boolean = false;
+  private destroyed = false;
   private position: string;
   private callbacks: WidgetCallbacks;
 
@@ -115,10 +116,23 @@ export class ChatWidget {
     footer.appendChild(form);
     this.panel.appendChild(footer);
     this.shadow.appendChild(this.panel);
-    document.body.appendChild(this.host);
+    this.attachToDocument();
     this.showInitialLoading();
 
     if (options.autoOpen) this.open();
+  }
+
+  /**
+   * `document.body` is null when the CDN script runs from <head> without defer,
+   * so fall back to waiting for the parse to finish rather than throwing.
+   */
+  private attachToDocument(): void {
+    const attach = () => {
+      if (this.destroyed) return;
+      (document.body ?? document.documentElement).appendChild(this.host);
+    };
+    if (document.body) attach();
+    else document.addEventListener('DOMContentLoaded', attach, { once: true });
   }
 
   private showInitialLoading(): void {
@@ -281,6 +295,7 @@ export class ChatWidget {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.host.remove();
   }
 

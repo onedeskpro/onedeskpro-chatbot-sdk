@@ -19,7 +19,11 @@ export function ChatbotProvider({ children, ...options }: ChatbotProviderProps) 
 
   useEffect(() => {
     const instance = instanceRef.current!;
-    void instance.init(options);
+    // init() rejects on a misconfiguration such as a missing apiKey; surface it
+    // rather than leaving an unhandled rejection.
+    instance.init(options).catch((err: unknown) => {
+      console.error('[onedeskpro-chatbot] Failed to initialise:', err);
+    });
     return () => instance.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

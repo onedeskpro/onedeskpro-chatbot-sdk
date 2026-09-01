@@ -1,11 +1,11 @@
 import type {
-  ChatbotBlockReason,
   ChatbotEventMap,
   ChatbotInitOptions,
   ChatbotState,
   ChatMessage,
+  SdkConfigResponse,
 } from '@onedeskpro/chatbot-types';
-import { ApiClient } from './api-client';
+import { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS } from './api-client';
 import { DEFAULT_API_BASE_URL } from './constants';
 import { EventEmitter } from './event-emitter';
 import { SessionManager } from './session-manager';
@@ -24,7 +24,23 @@ const DEFAULTS = {
   placeholder: 'Type your message…',
   autoOpen: false,
   sessionId: '',
+  requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
 };
+
+/**
+ * Drop keys whose value is `undefined` so they cannot overwrite a default.
+ * Callers routinely spread optional config through — `apiBaseUrl={process.env.X}`
+ * with X unset would otherwise land as an explicit `undefined`.
+ */
+function definedOnly(options: ChatbotInitOptions): Partial<ChatbotInitOptions> {
+  return Object.fromEntries(
+    Object.entries(options).filter(([, value]) => value !== undefined),
+  ) as Partial<ChatbotInitOptions>;
+}
+
+/** Monotonic ids for locally-created messages — `Date.now()` collides within a tick. */
+let nextLocalId = 0;
+const localMessageId = (): number => Date.now() * 1000 + (nextLocalId++ % 1000);
 
 export class ChatbotCore {
   private apiClient!: ApiClient;
@@ -33,6 +49,13 @@ export class ChatbotCore {
   private widget: ChatWidget | null = null;
   private options!: Required<ChatbotInitOptions>;
   private callerSetName = false;
+  /**
+   * Bumped by every init() and by destroy(). An async init compares the token it
+   * started with against this before touching anything, so a superseded run — a
+   * React StrictMode remount, or a caller re-initialising — quietly stands down
+   * instead of racing the live one.
+   */
+  private initToken = 0;
 
   private _state: ChatbotState = {
     isOpen: false,
@@ -44,104 +67,135 @@ export class ChatbotCore {
     error: null,
   };
 
+  /**
+   * The single place state is written. Replaces `_state` rather than mutating it
+   * and announces the change, so subscribers (React especially) stay in sync with
+   * everything — not just the transitions that have a dedicated event.
+   */
+  private setState(patch: Partial<ChatbotState>): void {
+    this._state = { ...this._state, ...patch };
+    this.emitter.emit('state-change', this._state);
+  }
+
   async init(options: ChatbotInitOptions): Promise<void> {
+    if (!options.apiKey) {
+      throw new Error('[onedeskpro-chatbot] `apiKey` is required to initialise the chatbot.');
+    }
+
+    const token = ++this.initToken;
+
+    // Re-initialising must not orphan the previous widget in the DOM.
+    this.widget?.destroy();
+    this.widget = null;
+
     this.callerSetName = options.chatbotName !== undefined;
-    this.options = { ...DEFAULTS, ...options };
+    this.options = { ...DEFAULTS, ...definedOnly(options) } as Required<ChatbotInitOptions>;
 
     this.apiClient = new ApiClient({
       baseUrl: this.options.apiBaseUrl,
       apiKey: this.options.apiKey,
+      timeoutMs: this.options.requestTimeoutMs,
     });
 
     const sessionId = this.session.init(this.options.sessionId || undefined);
-    this._state.sessionId = sessionId;
+    this.setState({ sessionId });
 
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       this.widget = new ChatWidget(this.options, {
         onSend: (text) => void this.sendMessage(text),
         onOpen: () => {
-          this._state.isOpen = true;
+          this.setState({ isOpen: true });
           this.emitter.emit('open');
         },
         onClose: () => {
-          this._state.isOpen = false;
+          this.setState({ isOpen: false });
           this.emitter.emit('close');
         },
         onReset: () => this.resetSession(),
       });
     }
 
-    const blockReason = await this.checkReadiness();
-    this._state.blockReason = blockReason;
-    this._state.isReady = blockReason === null;
+    const config = await this.fetchConfig();
+    if (token !== this.initToken) return;
+
+    if (config && !this.callerSetName && config.agentName.trim()) {
+      this.options.chatbotName = config.agentName;
+    }
+    const blockReason = config?.blockReason ?? null;
+    this.setState({ blockReason, isReady: blockReason === null });
 
     if (blockReason) {
       this.widget?.showBlocked(blockReason);
     } else {
       this.widget?.readyToChat(this.options);
-      await this.loadHistory();
+      await this.loadHistory(token);
+      if (token !== this.initToken) return;
     }
 
     this.emitter.emit('ready');
   }
 
-  private async checkReadiness(): Promise<ChatbotBlockReason> {
+  /** Returns null on failure — a network blip must not block the user from trying. */
+  private async fetchConfig(): Promise<SdkConfigResponse | null> {
     try {
-      const config = await this.apiClient.fetchConfig();
-      if (!this.callerSetName && config.agentName.trim()) {
-        this.options.chatbotName = config.agentName;
-      }
-      return config.blockReason;
+      return await this.apiClient.fetchConfig();
     } catch {
-      // Network failure — don't block the user, let them try
       return null;
     }
   }
 
   async sendMessage(text: string): Promise<void> {
-    if (!text.trim() || this._state.isLoading) return;
+    const sessionId = this.session.get();
+    if (!this.apiClient || !sessionId) {
+      throw new Error('[onedeskpro-chatbot] Call init() before sendMessage().');
+    }
 
-    const sessionId = this.session.get()!;
+    const content = text.trim();
+    if (!content || this._state.isLoading) return;
 
     const optimistic: ChatMessage = {
-      id: Date.now(),
+      id: localMessageId(),
       sessionId,
-      message: { type: 'human', content: text },
+      message: { type: 'human', content },
     };
-    this._state.messages.push(optimistic);
+    this.setState({
+      messages: [...this._state.messages, optimistic],
+      isLoading: true,
+      error: null,
+    });
     this.widget?.appendMessage(optimistic);
-
-    this._state.isLoading = true;
-    this._state.error = null;
     this.widget?.setLoading(true);
+    this.emitter.emit('message', optimistic);
 
     try {
-      const response = await this.apiClient.sendMessage({ chatInput: text, sessionId });
+      const response = await this.apiClient.sendMessage({ chatInput: content, sessionId });
 
       const aiMsg: ChatMessage = {
-        id: Date.now() + 1,
+        id: localMessageId(),
         sessionId,
         message: { type: 'ai', content: response.text },
       };
-      this._state.messages.push(aiMsg);
+      this.setState({ messages: [...this._state.messages, aiMsg], isLoading: false });
       this.widget?.appendMessage(aiMsg);
       this.emitter.emit('message', aiMsg);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      this._state.error = error.message;
+      this.setState({ error: error.message, isLoading: false });
       this.emitter.emit('error', error);
     } finally {
-      this._state.isLoading = false;
+      // State already settled above; the widget still needs its spinner cleared
+      // on both paths.
       this.widget?.setLoading(false);
     }
   }
 
-  private async loadHistory(): Promise<void> {
+  private async loadHistory(token: number): Promise<void> {
     const sessionId = this.session.get();
     if (!sessionId) return;
     try {
       const messages = await this.apiClient.fetchHistory(sessionId);
-      this._state.messages = messages;
+      if (token !== this.initToken) return;
+      this.setState({ messages });
       if (messages.length > 0) this.widget?.setMessages(messages);
     } catch {
       // History load failure is non-fatal
@@ -155,9 +209,7 @@ export class ChatbotCore {
   resetSession(): void {
     if (!this._state.isReady) return;
     const newId = this.session.reset();
-    this._state.sessionId = newId;
-    this._state.messages = [];
-    this._state.error = null;
+    this.setState({ sessionId: newId, messages: [], error: null });
     this.widget?.clearMessages(this.options.chatbotName);
     this.emitter.emit('session-reset');
   }
@@ -170,8 +222,16 @@ export class ChatbotCore {
     return { ...this._state };
   }
 
+  /**
+   * Unmounts the widget and cancels any in-flight init. Subscriptions are left
+   * alone on purpose: they belong to whoever registered them, and tearing them
+   * down here would silently kill listeners this instance does not own — every
+   * useChatbot() in the tree, for one. They are released with the instance.
+   */
   destroy(): void {
+    this.initToken++;
     this.widget?.destroy();
-    this.emitter.removeAllListeners();
+    this.widget = null;
+    this.setState({ isOpen: false, isLoading: false, isReady: false });
   }
 }

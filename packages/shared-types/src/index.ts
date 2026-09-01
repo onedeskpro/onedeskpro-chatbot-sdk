@@ -11,6 +11,8 @@ export interface ChatbotInitOptions {
   placeholder?: string;
   autoOpen?: boolean;
   sessionId?: string;
+  /** Abort an API request that has not responded in this many ms. Defaults to 30000. */
+  requestTimeoutMs?: number;
 }
 
 // ─── API Shapes ────────────────────────────────────────────────────────────────
@@ -64,7 +66,14 @@ export interface SdkConfigResponse {
 // ─── Events ───────────────────────────────────────────────────────────────────
 
 export type ChatbotEventMap = {
+  /** Fired for every message added to the conversation, human and AI alike. */
   message: ChatMessage;
+  /**
+   * Fired whenever any part of the state changes — including the ones no other
+   * event covers, such as `isLoading` flipping while a reply is in flight.
+   * Carries the new state so subscribers do not have to call `getState()`.
+   */
+  'state-change': ChatbotState;
   open: void;
   close: void;
   error: Error;

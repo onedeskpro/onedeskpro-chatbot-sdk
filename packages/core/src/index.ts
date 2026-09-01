@@ -1,6 +1,7 @@
 export { ChatbotCore } from './chatbot-core';
 export { DEFAULT_API_BASE_URL } from './constants';
-export { ApiClient } from './api-client';
+export { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS } from './api-client';
+export type { ChatbotRequestError } from './api-client';
 export { EventEmitter } from './event-emitter';
 export { SessionManager } from './session-manager';
 export type {

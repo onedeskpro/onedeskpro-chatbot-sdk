@@ -1,11 +1,11 @@
-import { resolve } from 'path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig({
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: fileURLToPath(new URL('src/index.ts', import.meta.url)),
       name: 'OnedeskProChatbot',
       formats: ['es', 'cjs', 'iife'],
       fileName: (format) => {

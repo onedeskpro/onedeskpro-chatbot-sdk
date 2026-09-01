@@ -9,11 +9,13 @@ function escapeHtml(str: string): string {
 function parseMarkdown(raw: string): string {
   const stash: string[] = [];
 
-  // Stash fenced code blocks before escaping HTML
+  // Stash fenced code blocks before escaping HTML. Block-level and inline code
+  // get different sentinels so the paragraph pass below can tell them apart —
+  // a <pre> wrapped in a <p> gets auto-closed by the parser and wrecks the layout.
   let text = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
     const i = stash.length;
     stash.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
-    return `\x02${i}\x03`;
+    return `\x04${i}\x05`;
   });
 
   // Stash inline code
@@ -74,13 +76,24 @@ function parseMarkdown(raw: string): string {
       const t = block.trim();
       if (!t) return '';
       if (/^<(h[1-3]|ul|ol|pre|li)/.test(t)) return t;
-      return `<p>${t.replace(/\n/g, '<br>')}</p>`;
+      // Split around fenced-code sentinels so each one sits beside the paragraph
+      // rather than inside it; inline-code sentinels stay in the flow.
+      return t
+        .split(/(\x04\d+\x05)/g)
+        .map(part => {
+          if (/^\x04\d+\x05$/.test(part)) return part;
+          const inner = part.trim();
+          return inner ? `<p>${inner.replace(/\n/g, '<br>')}</p>` : '';
+        })
+        .join('');
     })
     .filter(Boolean)
     .join('');
 
-  // Restore stashed code elements
-  text = text.replace(/\x02(\d+)\x03/g, (_, i) => stash[+i] ?? '');
+  // Restore stashed code elements (both sentinel flavours)
+  text = text
+    .replace(/\x04(\d+)\x05/g, (_, i) => stash[+i] ?? '')
+    .replace(/\x02(\d+)\x03/g, (_, i) => stash[+i] ?? '');
 
   return text;
 }

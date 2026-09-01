@@ -1,20 +1,55 @@
 {
   "name": "@onedeskpro/chatbot-core",
   "version": "0.1.0",
-  "description": "Framework-independent core for Onedesk Pro Chatbot SDK",
+  "description": "Framework-independent core for the Onedesk Pro Chatbot SDK",
+  "license": "MIT",
+  "author": "Typetech IT <support@onedeskpro.com>",
+  "homepage": "https://github.com/typetechit/onedeskpro-chatbot-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/typetechit/onedeskpro-chatbot-sdk.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/typetechit/onedeskpro-chatbot-sdk/issues"
+  },
+  "keywords": [
+    "onedeskpro",
+    "chatbot",
+    "chat-widget",
+    "customer-support",
+    "sdk",
+    "vanilla-js"
+  ],
+  "sideEffects": false,
+  "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.iife.js",
+  "jsdelivr": "./dist/index.iife.js",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && cp dist/index.d.ts dist/index.d.cts",
+    "test": "vitest run",
     "dev": "vite build --watch",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
@@ -23,8 +58,10 @@
     "@onedeskpro/chatbot-types": "workspace:*"
   },
   "devDependencies": {
+    "jsdom": "^25",
     "typescript": "^5.5.0",
     "vite": "^5.0.0",
-    "vite-plugin-dts": "^4.0.0"
+    "vite-plugin-dts": "^4.0.0",
+    "vitest": "^2"
   }
 }
