@@ -20,6 +20,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/typetechit/onedeskpro-chatbot-sdk.git"
+    "url": "git+https://github.com/onedeskpro/onedeskpro-chatbot-sdk.git"
   }
 }
