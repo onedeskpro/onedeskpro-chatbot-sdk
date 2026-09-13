@@ -271,11 +271,11 @@ export class ChatWidget {
       iconEl.innerHTML = fileTextIcon();
       title.textContent = 'Business Context Required';
       desc.textContent = 'Add a system prompt for this agent in the admin panel.';
-    } else if (reason === 'no-directories') {
+    } else if (reason === 'no-collections') {
       iconEl.innerHTML = fileTextIcon();
       title.textContent = 'Knowledge Base Required';
       desc.textContent =
-        'Assign at least one knowledge-base directory to this agent in the admin panel.';
+        'Assign at least one knowledge collection to this agent in the admin panel.';
     } else {
       iconEl.innerHTML = settingsIcon();
       title.textContent = 'Chatbot Settings Required';
