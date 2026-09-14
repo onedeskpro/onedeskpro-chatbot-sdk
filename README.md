@@ -49,25 +49,9 @@ pnpm install
 pnpm build       # build all packages via turbo
 pnpm dev         # rebuild on change
 pnpm type-check
-pnpm test        # vitest, jsdom environment
 ```
 
 The React demo lives in [`demo/react`](demo/react).
-
-### Tests
-
-`packages/core` covers the session manager, the API client, the markdown renderer,
-and the `ChatbotCore` lifecycle; `packages/react` drives the provider and the
-`useChatbot` hook through React Testing Library. Both run under jsdom.
-
-Two areas are worth keeping honest as the SDK grows:
-
-- **The markdown renderer** writes AI output via `innerHTML`, so its suite asserts
-  against a parsed DOM — no `on*` attributes, no live elements, no non-http
-  schemes — rather than pattern-matching the HTML string.
-- **`init()` is async at several points**, and each await is its own race. The
-  supersession tests hold one request open so a superseded run is genuinely
-  mid-flight when the live one starts; without that they pass vacuously.
 
 ## Releasing
 
