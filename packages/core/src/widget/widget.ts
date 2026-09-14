@@ -547,9 +547,14 @@ export class ChatWidget {
 
   private handleSend(): void {
     const text = this.input.value.trim();
-    if (!text) return;
+    // Skip while a reply is in flight — sendBtn is disabled, but Enter can still
+    // fire submit; core also guards, this avoids clearing the draft for nothing.
+    if (!text || this.sendBtn.disabled) return;
     this.input.value = '';
     this.callbacks.onSend(text);
+    // Keep caret in the field after send so the user can type the next message
+    // without clicking back in (disabled inputs would steal focus).
+    this.input.focus();
   }
 
   private handleIdentifySubmit(): void {
@@ -587,16 +592,20 @@ export class ChatWidget {
   }
 
   setLoading(loading: boolean): void {
+    // Only disable the send button. Disabling the input blurs it (browser
+    // behavior), which forces the user to click back after every message.
+    // Concurrent sends are blocked via sendBtn.disabled + handleSend/core guards.
     this.sendBtn.disabled = loading;
-    this.input.disabled = loading;
     if (loading) {
       if (!this.shadow.getElementById('ttcb-typing')) {
         this.messagesContainer.appendChild(buildTypingIndicator());
         this.scrollToBottom();
       }
+      this.input.focus();
     } else {
       const el = this.shadow.getElementById('ttcb-typing');
       if (el) el.remove();
+      this.input.focus();
     }
   }
 
