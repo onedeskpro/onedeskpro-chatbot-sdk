@@ -95,12 +95,11 @@ export function buildStyles(primaryColor: string, theme: 'light' | 'dark' | 'aut
     .ttcb-header {
       padding: 14px 16px;
       border-bottom: 1px solid var(--ttcb-border);
-      display: flex; align-items: flex-start; gap: 10px;
+      display: flex; align-items: center; gap: 10px;
       background: var(--ttcb-bg);
       flex-shrink: 0;
     }
     .ttcb-avatar-wrap {
-      position: relative;
       flex-shrink: 0;
     }
     .ttcb-avatar {
@@ -109,18 +108,9 @@ export function buildStyles(primaryColor: string, theme: 'light' | 'dark' | 'aut
       display: flex; align-items: center; justify-content: center;
     }
     .ttcb-avatar svg { width: 22px; height: 22px; fill: #fff; }
-    .ttcb-online-dot {
-      position: absolute;
-      right: -2px; bottom: -2px;
-      width: 12px; height: 12px;
-      border-radius: 50%;
-      background: var(--ttcb-online);
-      border: 2px solid var(--ttcb-bg);
-    }
     .ttcb-header-main {
       flex: 1; min-width: 0;
       display: flex; flex-direction: column; gap: 4px;
-      padding-top: 1px;
     }
     .ttcb-header-title-row {
       display: flex; align-items: center; gap: 6px;
@@ -156,17 +146,17 @@ export function buildStyles(primaryColor: string, theme: 'light' | 'dark' | 'aut
     }
     .ttcb-meta-replies svg { width: 18px; height: 14px; }
     .ttcb-header-actions {
-      display: flex; align-items: center; gap: 2px;
-      flex-shrink: 0; margin-top: 2px;
+      display: flex; align-items: center; gap: 3px;
+      flex-shrink: 0; align-self: center;
     }
     .ttcb-close-btn, .ttcb-new-session-btn {
       background: none; border: none; cursor: pointer;
-      color: var(--ttcb-text-muted); padding: 4px; border-radius: 6px;
+      color: var(--ttcb-text-muted); padding: 6px; border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
     }
     .ttcb-close-btn:hover, .ttcb-new-session-btn:hover { background: var(--ttcb-bg-secondary); }
-    .ttcb-close-btn svg { width: 18px; height: 18px; fill: currentColor; }
-    .ttcb-new-session-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .ttcb-close-btn svg { width: 19px; height: 19px; fill: currentColor; }
+    .ttcb-new-session-btn svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; }
     .ttcb-new-session-btn.hidden { display: none; }
 
     .ttcb-messages {

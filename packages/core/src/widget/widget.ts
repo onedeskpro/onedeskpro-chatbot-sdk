@@ -168,11 +168,7 @@ export class ChatWidget {
     const avatar = document.createElement('div');
     avatar.className = 'ttcb-avatar';
     avatar.innerHTML = botIcon();
-    const onlineDot = document.createElement('span');
-    onlineDot.className = 'ttcb-online-dot';
-    onlineDot.setAttribute('aria-hidden', 'true');
     avatarWrap.appendChild(avatar);
-    avatarWrap.appendChild(onlineDot);
 
     const main = document.createElement('div');
     main.className = 'ttcb-header-main';
