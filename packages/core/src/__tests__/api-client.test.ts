@@ -17,13 +17,14 @@ const respond = (init: {
 }));
 
 const envelope = (data: unknown) => JSON.stringify({ statusCode: 200, message: 'ok', data });
+const chatPayload = { chatInput: 'x', visitorToken: 'sv_token' };
 
 describe('ApiClient', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('unwraps the data envelope', async () => {
     vi.stubGlobal('fetch', respond({ ok: true, body: envelope({ text: 'hi', sessionId: 's' }) }));
-    await expect(client().sendMessage({ chatInput: 'x' })).resolves.toEqual({ text: 'hi', sessionId: 's' });
+    await expect(client().sendMessage(chatPayload)).resolves.toEqual({ text: 'hi', sessionId: 's' });
   });
 
   it('sends the api key and strips the trailing slash from the base url', async () => {
@@ -35,11 +36,14 @@ describe('ApiClient', () => {
     expect((init!.headers as Record<string, string>)['X-API-Key']).toBe('secret');
   });
 
-  it('passes the session id as a query parameter', async () => {
-    const fetchMock = respond({ ok: true, body: envelope([]) });
+  it('sends visitor token header on verify', async () => {
+    const fetchMock = respond({ ok: true, body: envelope({ valid: true, name: 'Remo' }) });
     vi.stubGlobal('fetch', fetchMock);
-    await client().fetchHistory('abc');
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.com/sdk/chat-history?sessionId=abc');
+    await client().verifyVisitor('sv_abc');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.com/sdk/visitor');
+    expect((fetchMock.mock.calls[0][1]!.headers as Record<string, string>)['X-Visitor-Token']).toBe(
+      'sv_abc',
+    );
   });
 
   it('surfaces a structured API error verbatim', async () => {
@@ -47,7 +51,7 @@ describe('ApiClient', () => {
       ok: false, status: 401, statusText: 'Unauthorized',
       body: JSON.stringify({ statusCode: 401, message: 'Invalid API key', code: 'UNAUTHORIZED', timestamp: 't', path: '/sdk/chat' }),
     }));
-    await expect(client().sendMessage({ chatInput: 'x' })).rejects.toMatchObject({
+    await expect(client().sendMessage(chatPayload)).rejects.toMatchObject({
       message: 'Invalid API key',
       status: 401,
       apiError: { code: 'UNAUTHORIZED' },
@@ -58,7 +62,7 @@ describe('ApiClient', () => {
   // status with a JSON SyntaxError.
   it('reports the HTTP status when the error body is not JSON', async () => {
     vi.stubGlobal('fetch', respond({ ok: false, status: 502, statusText: 'Bad Gateway', body: '<html>502</html>' }));
-    const err = await client().sendMessage({ chatInput: 'x' }).catch((e) => e);
+    const err = await client().sendMessage(chatPayload).catch((e) => e);
     expect(err.status).toBe(502);
     expect(err.apiError.code).toBe('HTTP_ERROR');
     expect(err.message).toContain('502');
@@ -82,7 +86,7 @@ describe('ApiClient', () => {
         init.signal?.addEventListener('abort', () =>
           reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
       })));
-    const err = await client(50).sendMessage({ chatInput: 'x' }).catch((e) => e);
+    const err = await client(50).sendMessage(chatPayload).catch((e) => e);
     expect(err.apiError.code).toBe('TIMEOUT');
     expect(err.message).toContain('timed out');
   });

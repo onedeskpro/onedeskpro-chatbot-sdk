@@ -148,6 +148,55 @@ export function userIcon(): string {
   </svg>`;
 }
 
+export function personIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>`;
+}
+
+export function envelopeIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+    <polyline points="22,6 12,13 2,6"/>
+  </svg>`;
+}
+
+export function chevronDownIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <polyline points="6 9 12 15 18 9"/>
+  </svg>`;
+}
+
+export function arrowRightIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+    <polyline points="12 5 19 12 12 19"/>
+  </svg>`;
+}
+
+export function shieldCheckIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    <polyline points="9 12 11 14 15 10"/>
+  </svg>`;
+}
+
+export function verifiedCheckIcon(): string {
+  return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" fill="currentColor"/>
+    <path d="M9 12l2 2 4-4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+export function starsIcon(): string {
+  return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#F59E0B" d="M8 2.5l1.1 2.2 2.4.3-1.7 1.7.4 2.4L8 8l-2.2 1.1.4-2.4L4.5 5l2.4-.3L8 2.5z"/>
+    <path fill="#F59E0B" d="M16 3.5l.8 1.6 1.8.2-1.3 1.3.3 1.8L16 7.5l-1.6.9.3-1.8-1.3-1.3 1.8-.2L16 3.5z"/>
+    <path fill="#FBBF24" d="M12 11.5l1 2 2.2.3-1.6 1.6.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.6 2.2-.3 1-2z"/>
+  </svg>`;
+}
+
 export function buildMessageEl(content: string, type: 'human' | 'ai'): HTMLElement {
   const wrapper = document.createElement('div');
   wrapper.className = `ttcb-msg ${type}`;

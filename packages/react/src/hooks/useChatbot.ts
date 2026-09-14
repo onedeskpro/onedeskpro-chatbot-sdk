@@ -9,10 +9,15 @@ export interface UseChatbotReturn {
   isOpen: boolean;
   isLoading: boolean;
   isReady: boolean;
+  needsIdentify: boolean;
   blockReason: ChatbotBlockReason;
   error: string | null;
+  visitorToken: string | null;
+  visitorName: string | null;
+  /** @deprecated Use visitorToken. */
   sessionId: string | null;
   sendMessage: (text: string) => Promise<void>;
+  submitIdentify: (payload: { name: string; phone: string; email?: string }) => Promise<void>;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -41,6 +46,11 @@ export function useChatbot(): UseChatbotReturn {
     (text: string) => instance.sendMessage(text),
     [instance],
   );
+  const submitIdentify = useCallback(
+    (payload: { name: string; phone: string; email?: string }) =>
+      instance.submitIdentify(payload),
+    [instance],
+  );
   const open = useCallback(() => instance.open(), [instance]);
   const close = useCallback(() => instance.close(), [instance]);
   const toggle = useCallback(() => instance.toggle(), [instance]);
@@ -51,10 +61,14 @@ export function useChatbot(): UseChatbotReturn {
     isOpen: state.isOpen,
     isLoading: state.isLoading,
     isReady: state.isReady,
+    needsIdentify: state.needsIdentify,
     blockReason: state.blockReason,
     error: state.error,
-    sessionId: state.sessionId,
+    visitorToken: state.visitorToken,
+    visitorName: state.visitorName,
+    sessionId: state.visitorToken,
     sendMessage,
+    submitIdentify,
     open,
     close,
     toggle,

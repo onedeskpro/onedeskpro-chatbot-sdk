@@ -3,12 +3,13 @@ import type {
   ChatbotInitOptions,
   ChatbotState,
   ChatMessage,
+  IdentifyRequest,
   SdkConfigResponse,
 } from '@onedeskpro/chatbot-types';
 import { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS } from './api-client';
 import { DEFAULT_API_BASE_URL } from './constants';
 import { EventEmitter } from './event-emitter';
-import { SessionManager } from './session-manager';
+import { VisitorTokenManager } from './session-manager';
 import { ChatWidget } from './widget/widget';
 
 type Listener<K extends keyof ChatbotEventMap> =
@@ -45,7 +46,7 @@ const localMessageId = (): number => Date.now() * 1000 + (nextLocalId++ % 1000);
 export class ChatbotCore {
   private apiClient!: ApiClient;
   private emitter = new EventEmitter();
-  private session = new SessionManager();
+  private visitorTokens = new VisitorTokenManager();
   private widget: ChatWidget | null = null;
   private options!: Required<ChatbotInitOptions>;
   private callerSetName = false;
@@ -61,9 +62,11 @@ export class ChatbotCore {
     isOpen: false,
     isLoading: false,
     isReady: false,
+    needsIdentify: true,
     blockReason: null,
     messages: [],
-    sessionId: null,
+    visitorToken: null,
+    visitorName: null,
     error: null,
   };
 
@@ -97,12 +100,18 @@ export class ChatbotCore {
       timeoutMs: this.options.requestTimeoutMs,
     });
 
-    const sessionId = this.session.init(this.options.sessionId || undefined);
-    this.setState({ sessionId });
+    this.setState({
+      visitorToken: null,
+      visitorName: null,
+      needsIdentify: true,
+      messages: [],
+      error: null,
+    });
 
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       this.widget = new ChatWidget(this.options, {
         onSend: (text) => void this.sendMessage(text),
+        onIdentify: (payload) => void this.submitIdentify(payload),
         onOpen: () => {
           this.setState({ isOpen: true });
           this.emitter.emit('open');
@@ -127,8 +136,8 @@ export class ChatbotCore {
     if (blockReason) {
       this.widget?.showBlocked(blockReason);
     } else {
-      this.widget?.readyToChat(this.options);
-      await this.loadHistory(token);
+      this.visitorTokens.setScope(config?.agentId);
+      await this.resolveVisitorGate(token);
       if (token !== this.initToken) return;
     }
 
@@ -144,18 +153,78 @@ export class ChatbotCore {
     }
   }
 
+  private async resolveVisitorGate(token: number): Promise<void> {
+    const stored = this.visitorTokens.get();
+    if (stored) {
+      try {
+        const result = await this.apiClient.verifyVisitor(stored);
+        if (token !== this.initToken) return;
+        if (result.valid) {
+          this.enterChat(stored, result.name);
+          return;
+        }
+      } catch {
+        // Treat verify failure as unknown visitor.
+      }
+      this.visitorTokens.clear();
+    }
+
+    this.setState({ needsIdentify: true, visitorToken: null, visitorName: null });
+    this.widget?.showIdentifyForm(this.options);
+  }
+
+  private enterChat(visitorToken: string, visitorName: string | null): void {
+    this.visitorTokens.set(visitorToken);
+    this.setState({
+      visitorToken,
+      visitorName,
+      needsIdentify: false,
+      messages: [],
+      error: null,
+    });
+    this.widget?.readyToChat(this.options);
+  }
+
+  async submitIdentify(payload: IdentifyRequest): Promise<void> {
+    if (!this.apiClient || this._state.isLoading || !this._state.isReady) return;
+
+    const name = payload.name.trim();
+    const phone = payload.phone.trim();
+    if (!name || !phone) return;
+
+    this.setState({ isLoading: true, error: null });
+    this.widget?.setIdentifyLoading(true);
+
+    try {
+      const response = await this.apiClient.identify({
+        name,
+        phone,
+        ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
+      });
+      this.enterChat(response.visitorToken, name);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.setState({ error: error.message });
+      this.widget?.showIdentifyError(error.message);
+      this.emitter.emit('error', error);
+    } finally {
+      this.setState({ isLoading: false });
+      this.widget?.setIdentifyLoading(false);
+    }
+  }
+
   async sendMessage(text: string): Promise<void> {
-    const sessionId = this.session.get();
-    if (!this.apiClient || !sessionId) {
-      throw new Error('[onedeskpro-chatbot] Call init() before sendMessage().');
+    const visitorToken = this.visitorTokens.get() ?? this._state.visitorToken;
+    if (!this.apiClient || !visitorToken) {
+      throw new Error('[onedeskpro-chatbot] Identify before sendMessage().');
     }
 
     const content = text.trim();
-    if (!content || this._state.isLoading) return;
+    if (!content || this._state.isLoading || this._state.needsIdentify) return;
 
     const optimistic: ChatMessage = {
       id: localMessageId(),
-      sessionId,
+      sessionId: visitorToken,
       message: { type: 'human', content },
     };
     this.setState({
@@ -168,11 +237,14 @@ export class ChatbotCore {
     this.emitter.emit('message', optimistic);
 
     try {
-      const response = await this.apiClient.sendMessage({ chatInput: content, sessionId });
+      const response = await this.apiClient.sendMessage({
+        chatInput: content,
+        visitorToken,
+      });
 
       const aiMsg: ChatMessage = {
         id: localMessageId(),
-        sessionId,
+        sessionId: response.sessionId,
         message: { type: 'ai', content: response.text },
       };
       this.setState({ messages: [...this._state.messages, aiMsg], isLoading: false });
@@ -189,27 +261,13 @@ export class ChatbotCore {
     }
   }
 
-  private async loadHistory(token: number): Promise<void> {
-    const sessionId = this.session.get();
-    if (!sessionId) return;
-    try {
-      const messages = await this.apiClient.fetchHistory(sessionId);
-      if (token !== this.initToken) return;
-      this.setState({ messages });
-      if (messages.length > 0) this.widget?.setMessages(messages);
-    } catch {
-      // History load failure is non-fatal
-    }
-  }
-
   on<K extends keyof ChatbotEventMap>(event: K, listener: Listener<K>): () => void {
     return this.emitter.on(event, listener);
   }
 
   resetSession(): void {
-    if (!this._state.isReady) return;
-    const newId = this.session.reset();
-    this.setState({ sessionId: newId, messages: [], error: null });
+    if (!this._state.isReady || this._state.needsIdentify) return;
+    this.setState({ messages: [], error: null });
     this.widget?.clearMessages(this.options.chatbotName);
     this.emitter.emit('session-reset');
   }
@@ -232,6 +290,6 @@ export class ChatbotCore {
     this.initToken++;
     this.widget?.destroy();
     this.widget = null;
-    this.setState({ isOpen: false, isLoading: false, isReady: false });
+    this.setState({ isOpen: false, isLoading: false, isReady: false, needsIdentify: true });
   }
 }

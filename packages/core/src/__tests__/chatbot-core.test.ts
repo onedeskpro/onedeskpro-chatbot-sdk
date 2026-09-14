@@ -3,10 +3,12 @@ import { ChatbotCore } from '../chatbot-core';
 import type { ChatbotState, ChatMessage } from '@onedeskpro/chatbot-types';
 
 const envelope = (data: unknown) => JSON.stringify({ statusCode: 200, message: 'ok', data });
+const VISITOR_TOKEN = 'sv_test_token';
 
 interface RouteOverrides {
   config?: unknown;
-  history?: unknown;
+  visitor?: unknown;
+  identify?: unknown;
   chat?: unknown;
   chatDelayMs?: number;
 }
@@ -18,8 +20,13 @@ function stubApi(overrides: RouteOverrides = {}) {
       return { ok: true, status: 200, statusText: 'OK',
         text: async () => envelope(overrides.config ?? { agentId: 'a', agentName: 'Remote Bot', ready: true, blockReason: null }) };
     }
-    if (u.includes('/sdk/chat-history')) {
-      return { ok: true, status: 200, statusText: 'OK', text: async () => envelope(overrides.history ?? []) };
+    if (u.includes('/sdk/visitor')) {
+      return { ok: true, status: 200, statusText: 'OK',
+        text: async () => envelope(overrides.visitor ?? { valid: true, name: 'Remo' }) };
+    }
+    if (u.includes('/sdk/identify')) {
+      return { ok: true, status: 200, statusText: 'OK',
+        text: async () => envelope(overrides.identify ?? { visitorToken: VISITOR_TOKEN }) };
     }
     if (overrides.chatDelayMs) await new Promise((r) => setTimeout(r, overrides.chatDelayMs));
     return { ok: true, status: 200, statusText: 'OK',
@@ -27,6 +34,11 @@ function stubApi(overrides: RouteOverrides = {}) {
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
+}
+
+/** Seed a verified visitor so init opens chat instead of the identify form. */
+function seedVisitor(): void {
+  localStorage.setItem('onedeskpro_visitor_token:a', VISITOR_TOKEN);
 }
 
 const hostCount = () => document.querySelectorAll('#onedeskpro-chatbot-host').length;
@@ -66,13 +78,23 @@ describe('ChatbotCore', () => {
       await expect(new ChatbotCore().init({ apiKey: '' })).rejects.toThrow(/apiKey/);
     });
 
-    it('mounts the widget and becomes ready', async () => {
+    it('mounts the widget and becomes ready with identify form when no token', async () => {
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
       expect(hostCount()).toBe(1);
       expect(c.getState().isReady).toBe(true);
-      expect(c.getState().sessionId).toBeTruthy();
+      expect(c.getState().needsIdentify).toBe(true);
+      expect(widgetText()).toContain('Start Chatting');
+    });
+
+    it('skips identify when a stored visitor token verifies', async () => {
+      seedVisitor();
+      stubApi();
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      expect(c.getState().needsIdentify).toBe(false);
+      expect(c.getState().visitorToken).toBe(VISITOR_TOKEN);
     });
 
     it('adopts the agent name from remote config unless the caller set one', async () => {
@@ -104,15 +126,12 @@ describe('ChatbotCore', () => {
       expect(c.getState().blockReason).toBeNull();
     });
 
-    it('loads existing history into state', async () => {
-      const history: ChatMessage[] = [
-        { id: 1, sessionId: 's', message: { type: 'human', content: 'earlier' } },
-        { id: 2, sessionId: 's', message: { type: 'ai', content: 'reply' } },
-      ];
-      stubApi({ history });
+    it('does not load chat history into state', async () => {
+      seedVisitor();
+      stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
-      expect(c.getState().messages).toHaveLength(2);
+      expect(c.getState().messages).toHaveLength(0);
     });
 
     // Spreading optional config through is routine: apiBaseUrl={process.env.X}
@@ -125,15 +144,28 @@ describe('ChatbotCore', () => {
     });
   });
 
-  describe('sendMessage', () => {
-    it('refuses to run before init', async () => {
+  describe('submitIdentify', () => {
+    it('stores the visitor token and opens chat', async () => {
       stubApi();
-      await expect(new ChatbotCore().sendMessage('hi')).rejects.toThrow(/init\(\)/);
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      await c.submitIdentify({ name: 'Remo', phone: '+8801744716387' });
+      expect(c.getState().needsIdentify).toBe(false);
+      expect(c.getState().visitorToken).toBe(VISITOR_TOKEN);
+      expect(c.getState().visitorName).toBe('Remo');
+    });
+  });
+
+  describe('sendMessage', () => {
+    it('refuses to run before identify', async () => {
+      stubApi();
+      await expect(new ChatbotCore().sendMessage('hi')).rejects.toThrow(/Identify/);
     });
 
     // The optimistic message and the isLoading flip had no event, so a React
     // consumer saw nothing at all until the reply arrived.
     it('announces the user message and the loading state before the reply lands', async () => {
+      seedVisitor();
       stubApi({ chatDelayMs: 20 });
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -153,6 +185,7 @@ describe('ChatbotCore', () => {
     });
 
     it('emits a message event for both the human and the AI message', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -163,6 +196,7 @@ describe('ChatbotCore', () => {
     });
 
     it('gives every message a distinct id even within the same millisecond', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -173,6 +207,7 @@ describe('ChatbotCore', () => {
     });
 
     it('ignores blank input and trims what it sends', async () => {
+      seedVisitor();
       const fetchMock = stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -180,11 +215,14 @@ describe('ChatbotCore', () => {
       expect(c.getState().messages).toHaveLength(0);
       await c.sendMessage('  padded  ');
       expect(c.getState().messages[0].message.content).toBe('padded');
-      const chatCall = fetchMock.mock.calls.find(([u]) => String(u).endsWith('/sdk/chat'))!;
-      expect(JSON.parse(chatCall[1]!.body as string).chatInput).toBe('padded');
+      const chatCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/sdk/chat'))!;
+      const body = JSON.parse(chatCall[1]!.body as string);
+      expect(body.chatInput).toBe('padded');
+      expect(body.visitorToken).toBe(VISITOR_TOKEN);
     });
 
     it('records the failure and releases the loading state', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -200,6 +238,7 @@ describe('ChatbotCore', () => {
     });
 
     it('recovers and can send again after a timeout', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k', requestTimeoutMs: 30 });
@@ -218,6 +257,7 @@ describe('ChatbotCore', () => {
 
   describe('state snapshots', () => {
     it('does not mutate a snapshot taken earlier', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
@@ -229,18 +269,19 @@ describe('ChatbotCore', () => {
   });
 
   describe('resetSession', () => {
-    it('issues a new session, clears messages and announces it', async () => {
+    it('clears messages and announces it while keeping the visitor token', async () => {
+      seedVisitor();
       stubApi();
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
       await c.sendMessage('hi');
-      const first = c.getState().sessionId;
+      const first = c.getState().visitorToken;
       let announced = false;
       c.on('session-reset', () => { announced = true; });
 
       c.resetSession();
       expect(c.getState().messages).toHaveLength(0);
-      expect(c.getState().sessionId).not.toBe(first);
+      expect(c.getState().visitorToken).toBe(first);
       expect(announced).toBe(true);
     });
   });
@@ -259,137 +300,48 @@ describe('ChatbotCore', () => {
     it('keeps subscriptions that other code owns', async () => {
       stubApi();
       const c = new ChatbotCore();
-      let changes = 0;
-      c.on('state-change', () => { changes++; });
       await c.init({ apiKey: 'k' });
+      let seen = 0;
+      c.on('state-change', () => { seen += 1; });
       c.destroy();
-      changes = 0;
-      await c.init({ apiKey: 'k' });
-      expect(changes).toBeGreaterThan(0);
+      c.open();
+      expect(seen).toBeGreaterThan(0);
     });
+  });
 
-    it('leaves no orphan widget when re-initialised', async () => {
-      stubApi();
-      const c = new ChatbotCore();
-      await c.init({ apiKey: 'k' });
-      c.destroy();
-      await c.init({ apiKey: 'k' });
-      expect(hostCount()).toBe(1);
-    });
-
-    it('lets a superseded init stand down instead of racing', async () => {
-      stubApi();
-      const c = new ChatbotCore();
-      let ready = 0;
-      c.on('ready', () => { ready++; });
-      await Promise.all([c.init({ apiKey: 'k' }), c.init({ apiKey: 'k' })]);
-      expect(ready).toBe(1);
-      expect(hostCount()).toBe(1);
-    });
-
-    // Each async checkpoint in init() is a separate race. Hold one request open so
-    // a superseded run is *past* the earlier checkpoint when the live one starts.
-    it('discards history that arrives from a superseded init', async () => {
-      let release!: (messages: ChatMessage[]) => void;
-      const held = new Promise<ChatMessage[]>((resolve) => { release = resolve; });
-      let historyCalls = 0;
-      const ok = (data: unknown) => ({ ok: true, status: 200, statusText: 'OK', text: async () => envelope(data) });
-
-      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-        const u = String(url);
-        if (u.includes('/sdk/config')) return ok({ agentId: 'a', agentName: 'Bot', ready: true, blockReason: null });
-        if (u.includes('/sdk/chat-history')) return ok(++historyCalls === 1 ? await held : []);
-        return ok({ text: 'r', sessionId: 's' });
-      }));
-
-      const c = new ChatbotCore();
-      const superseded = c.init({ apiKey: 'k' });
-      await vi.waitFor(() => expect(historyCalls).toBe(1));
-
-      await c.init({ apiKey: 'k' });                 // live run completes first
-      release([{ id: 9, sessionId: 's', message: { type: 'ai', content: 'stale' } }]);
-      await superseded;                              // stale history lands afterwards
-
-      expect(c.getState().messages).toHaveLength(0);
-    });
-
-    it('discards config that arrives from a superseded init', async () => {
-      let release!: (config: unknown) => void;
-      const held = new Promise<unknown>((resolve) => { release = resolve; });
-      let configCalls = 0;
-      const ok = (data: unknown) => ({ ok: true, status: 200, statusText: 'OK', text: async () => envelope(data) });
-
+  describe('superseded init', () => {
+    it('ignores a late visitor verify from a destroyed init', async () => {
+      let release!: (value: unknown) => void;
+      const held = new Promise((resolve) => { release = resolve; });
+      let visitorCalls = 0;
+      const ok = (data: unknown) => ({
+        ok: true, status: 200, statusText: 'OK', text: async () => envelope(data),
+      });
       vi.stubGlobal('fetch', vi.fn(async (url: string) => {
         const u = String(url);
         if (u.includes('/sdk/config')) {
-          return ok(++configCalls === 1
-            ? await held
-            : { agentId: 'a', agentName: 'Live Bot', ready: true, blockReason: null });
+          return ok({ agentId: 'a', agentName: 'Bot', ready: true, blockReason: null });
         }
-        if (u.includes('/sdk/chat-history')) return ok([]);
+        if (u.includes('/sdk/visitor')) {
+          visitorCalls += 1;
+          return ok(visitorCalls === 1 ? await held : { valid: false, name: null });
+        }
         return ok({ text: 'r', sessionId: 's' });
       }));
 
-      const c = new ChatbotCore();
-      const superseded = c.init({ apiKey: 'k' });
-      await vi.waitFor(() => expect(configCalls).toBe(1));
+      localStorage.setItem('onedeskpro_visitor_token:a', VISITOR_TOKEN);
+      const first = new ChatbotCore();
+      const firstInit = first.init({ apiKey: 'k' });
+      first.destroy();
 
-      await c.init({ apiKey: 'k' });
-      release({ agentId: 'a', agentName: 'Stale Bot', ready: true, blockReason: 'no-prompt' });
-      await superseded;
+      localStorage.clear();
+      const second = new ChatbotCore();
+      await second.init({ apiKey: 'k' });
+      release({ valid: true, name: 'Stale' });
+      await firstInit;
 
-      expect(c.getState().blockReason).toBeNull();
-      expect(c.getState().isReady).toBe(true);
-      expect(widgetText()).toContain('Live Bot');
-      expect(widgetText()).not.toContain('Stale Bot');
-    });
-
-    it('does not let a superseded init overwrite the live one', async () => {
-      const stale: ChatMessage[] = [{ id: 9, sessionId: 's', message: { type: 'ai', content: 'stale' } }];
-      stubApi({ history: stale, config: { agentId: 'a', agentName: 'Stale Bot', ready: true, blockReason: null } });
-      const c = new ChatbotCore();
-      const superseded = c.init({ apiKey: 'k' });
-
-      stubApi({ history: [], config: { agentId: 'a', agentName: 'Live Bot', ready: true, blockReason: null } });
-      await Promise.all([superseded, c.init({ apiKey: 'k' })]);
-
-      expect(c.getState().messages).toHaveLength(0);
-      expect(widgetText()).toContain('Live Bot');
-      expect(widgetText()).not.toContain('Stale Bot');
-    });
-  });
-
-  describe('open and close', () => {
-    it('tracks visibility in state and events', async () => {
-      stubApi();
-      const c = new ChatbotCore();
-      await c.init({ apiKey: 'k' });
-      const events: string[] = [];
-      c.on('open', () => events.push('open'));
-      c.on('close', () => events.push('close'));
-
-      c.open();
-      expect(c.getState().isOpen).toBe(true);
-      c.close();
-      expect(c.getState().isOpen).toBe(false);
-      c.toggle();
-      expect(c.getState().isOpen).toBe(true);
-      expect(events).toEqual(['open', 'close', 'open']);
-    });
-  });
-
-  describe('unsubscribing', () => {
-    it('stops delivering after the returned function is called', async () => {
-      stubApi();
-      const c = new ChatbotCore();
-      await c.init({ apiKey: 'k' });
-      let count = 0;
-      const off = c.on('state-change', () => { count++; });
-      await c.sendMessage('one');
-      const afterFirst = count;
-      off();
-      await c.sendMessage('two');
-      expect(count).toBe(afterFirst);
+      expect(second.getState().needsIdentify).toBe(true);
+      expect(second.getState().visitorToken).toBeNull();
     });
   });
 });

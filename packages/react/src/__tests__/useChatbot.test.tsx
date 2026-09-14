@@ -14,9 +14,10 @@ function stubApi({ holdReply = false } = {}) {
   let release!: (text: string) => void;
   const held = new Promise<string>((resolve) => { release = resolve; });
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    const u = String(url);
-    if (u.includes('/sdk/config')) return ok({ agentId: 'a', agentName: 'Bot', ready: true, blockReason: null });
-    if (u.includes('/sdk/chat-history')) return ok([]);
+    const path = String(url);
+    if (path.includes('/sdk/config')) return ok({ agentId: 'a', agentName: 'Bot', ready: true, blockReason: null });
+    if (path.includes('/sdk/visitor')) return ok({ valid: true, name: 'Remo' });
+    if (path.includes('/sdk/identify')) return ok({ visitorToken: 'sv_test_token' });
     return ok({ text: holdReply ? await held : 'AI reply', sessionId: 's1' });
   }));
   return { release: (text = 'AI reply') => release(text) };
@@ -42,7 +43,11 @@ const renderChat = (ui = <Conversation />, wrapper: 'strict' | 'plain' = 'plain'
 };
 
 describe('useChatbot', () => {
-  beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; });
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '';
+    localStorage.setItem('onedeskpro_visitor_token:a', 'sv_test_token');
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('throws a helpful error outside a provider', () => {

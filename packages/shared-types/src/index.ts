@@ -10,6 +10,7 @@ export interface ChatbotInitOptions {
   welcomeMessage?: string;
   placeholder?: string;
   autoOpen?: boolean;
+  /** @deprecated Visitor tokens replace client session ids. Ignored when present. */
   sessionId?: string;
   /** Abort an API request that has not responded in this many ms. Defaults to 30000. */
   requestTimeoutMs?: number;
@@ -33,9 +34,24 @@ export interface ApiError {
   path: string;
 }
 
+export interface IdentifyRequest {
+  name: string;
+  phone: string;
+  email?: string;
+}
+
+export interface IdentifyResponseData {
+  visitorToken: string;
+}
+
+export interface VisitorVerifyResponse {
+  valid: boolean;
+  name: string | null;
+}
+
 export interface ChatRequest {
   chatInput: string;
-  sessionId?: string;
+  visitorToken: string;
 }
 
 export interface ChatResponseData {
@@ -54,7 +70,7 @@ export interface ChatMessage {
 
 // ─── Readiness ────────────────────────────────────────────────────────────────
 
-export type ChatbotBlockReason = 'no-prompt' | 'no-directories' | null;
+export type ChatbotBlockReason = 'no-prompt' | 'no-collections' | 'no-directories' | null;
 
 export interface SdkConfigResponse {
   agentId: string;
@@ -87,8 +103,10 @@ export interface ChatbotState {
   isOpen: boolean;
   isLoading: boolean;
   isReady: boolean;
+  needsIdentify: boolean;
   blockReason: ChatbotBlockReason;
   messages: ChatMessage[];
-  sessionId: string | null;
+  visitorToken: string | null;
+  visitorName: string | null;
   error: string | null;
 }

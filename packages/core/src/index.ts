@@ -13,6 +13,9 @@ export type {
   ApiResponse,
   ChatRequest,
   ChatResponseData,
+  IdentifyRequest,
+  IdentifyResponseData,
+  VisitorVerifyResponse,
   SdkConfigResponse,
   ChatbotBlockReason,
 } from '@onedeskpro/chatbot-types';

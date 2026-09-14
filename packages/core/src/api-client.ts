@@ -1,10 +1,12 @@
 import type {
   ApiError,
   ApiResponse,
-  ChatMessage,
   ChatRequest,
   ChatResponseData,
+  IdentifyRequest,
+  IdentifyResponseData,
   SdkConfigResponse,
+  VisitorVerifyResponse,
 } from '@onedeskpro/chatbot-types';
 
 interface ApiClientOptions {
@@ -57,6 +59,7 @@ export class ApiClient {
     path: string,
     body?: unknown,
     params?: Record<string, string>,
+    extraHeaders?: Record<string, string>,
   ): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (params) {
@@ -68,6 +71,7 @@ export class ApiClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-API-Key': this.apiKey,
+      ...extraHeaders,
     };
 
     // Without this, a request that never resolves leaves the widget stuck in its
@@ -137,12 +141,18 @@ export class ApiClient {
     return (payload as ApiResponse<T>).data;
   }
 
-  async sendMessage(payload: ChatRequest): Promise<ChatResponseData> {
-    return this.request<ChatResponseData>('POST', '/sdk/chat', payload);
+  async identify(payload: IdentifyRequest): Promise<IdentifyResponseData> {
+    return this.request<IdentifyResponseData>('POST', '/sdk/identify', payload);
   }
 
-  async fetchHistory(sessionId: string): Promise<ChatMessage[]> {
-    return this.request<ChatMessage[]>('GET', '/sdk/chat-history', undefined, { sessionId });
+  async verifyVisitor(visitorToken: string): Promise<VisitorVerifyResponse> {
+    return this.request<VisitorVerifyResponse>('GET', '/sdk/visitor', undefined, undefined, {
+      'X-Visitor-Token': visitorToken,
+    });
+  }
+
+  async sendMessage(payload: ChatRequest): Promise<ChatResponseData> {
+    return this.request<ChatResponseData>('POST', '/sdk/chat', payload);
   }
 
   async fetchConfig(): Promise<SdkConfigResponse> {
