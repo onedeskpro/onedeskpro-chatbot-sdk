@@ -80,6 +80,7 @@ export function findDialCountry(iso: string): DialCountry | undefined {
 /**
  * Build an E.164-style phone from dial code + national number.
  * If the national field already starts with `+`, use that value (digits only after +).
+ * Leading trunk `0` (e.g. BD `017…` with dial `880`) is stripped so we send `+88017…`.
  */
 export function buildE164Phone(dial: string, national: string): string {
   const trimmed = national.trim();
@@ -87,7 +88,10 @@ export function buildE164Phone(dial: string, national: string): string {
     const digits = trimmed.replace(/\D/g, '');
     return digits ? `+${digits}` : '';
   }
-  const nationalDigits = trimmed.replace(/\D/g, '');
+  let nationalDigits = trimmed.replace(/\D/g, '');
+  if (!nationalDigits) return '';
+  // Country dial code already selected — drop local trunk prefix zeros
+  nationalDigits = nationalDigits.replace(/^0+/, '');
   if (!nationalDigits) return '';
   return `+${dial}${nationalDigits}`;
 }
