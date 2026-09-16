@@ -32,6 +32,16 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
+export function isChatbotRequestError(error: unknown): error is ChatbotRequestError {
+  return (
+    error instanceof Error &&
+    'apiError' in error &&
+    'status' in error &&
+    typeof (error as ChatbotRequestError).status === 'number' &&
+    isApiError((error as ChatbotRequestError).apiError)
+  );
+}
+
 export class ApiClient {
   private baseUrl: string;
   private apiKey: string;

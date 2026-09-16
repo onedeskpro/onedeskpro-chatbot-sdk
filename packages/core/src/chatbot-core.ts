@@ -6,7 +6,7 @@ import type {
   IdentifyRequest,
   SdkConfigResponse,
 } from '@onedeskpro/chatbot-types';
-import { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS } from './api-client';
+import { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS, isChatbotRequestError } from './api-client';
 import { DEFAULT_API_BASE_URL } from './constants';
 import { EventEmitter } from './event-emitter';
 import { VisitorTokenManager } from './session-manager';
@@ -124,19 +124,36 @@ export class ChatbotCore {
       });
     }
 
-    const config = await this.fetchConfig();
+    let config: SdkConfigResponse | null = null;
+    let configError: unknown = null;
+    try {
+      config = await this.apiClient.fetchConfig();
+    } catch (error) {
+      configError = error;
+    }
     if (token !== this.initToken) return;
 
-    if (config && !this.callerSetName && config.agentName.trim()) {
+    if (configError) {
+      this.handleConfigError(configError);
+      this.emitter.emit('ready');
+      return;
+    }
+
+    if (!config) {
+      this.emitter.emit('ready');
+      return;
+    }
+
+    if (!this.callerSetName && config.agentName.trim()) {
       this.options.chatbotName = config.agentName;
     }
-    const blockReason = config?.blockReason ?? null;
-    this.setState({ blockReason, isReady: blockReason === null });
+    const blockReason = config.blockReason ?? null;
+    this.setState({ blockReason, isReady: blockReason === null, error: null });
 
     if (blockReason) {
       this.widget?.showBlocked(blockReason);
     } else {
-      this.visitorTokens.setScope(config?.agentId);
+      this.visitorTokens.setScope(config.agentId);
       await this.resolveVisitorGate(token);
       if (token !== this.initToken) return;
     }
@@ -144,13 +161,31 @@ export class ChatbotCore {
     this.emitter.emit('ready');
   }
 
-  /** Returns null on failure — a network blip must not block the user from trying. */
-  private async fetchConfig(): Promise<SdkConfigResponse | null> {
-    try {
-      return await this.apiClient.fetchConfig();
-    } catch {
-      return null;
+  /**
+   * Maps `/sdk/config` failures: missing Connected Channels becomes `no-agent`,
+   * other 403s show the API message, and 401/network stay as `state.error`.
+   */
+  private handleConfigError(error: unknown): void {
+    const requestError = isChatbotRequestError(error) ? error : null;
+    const message =
+      requestError?.apiError.message ??
+      (error instanceof Error ? error.message : 'Failed to load chatbot config.');
+    const code = requestError?.apiError.code;
+    const status = requestError?.status;
+
+    if (code === 'agent_not_assigned') {
+      this.setState({ isReady: false, blockReason: 'no-agent', error: message });
+      this.widget?.showBlocked('no-agent');
+      return;
     }
+
+    if (status === 403) {
+      this.setState({ isReady: false, blockReason: null, error: message });
+      this.widget?.showBlocked(null, message);
+      return;
+    }
+
+    this.setState({ isReady: false, blockReason: null, error: message });
   }
 
   private async resolveVisitorGate(token: number): Promise<void> {

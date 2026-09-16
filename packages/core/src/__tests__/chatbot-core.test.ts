@@ -118,12 +118,13 @@ describe('ChatbotCore', () => {
       expect(c.getState().blockReason).toBe('no-prompt');
     });
 
-    it('stays usable when the config request fails', async () => {
+    it('stays unready when the config request fails', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
-      expect(c.getState().isReady).toBe(true);
+      expect(c.getState().isReady).toBe(false);
       expect(c.getState().blockReason).toBeNull();
+      expect(c.getState().error).toBe('offline');
     });
 
     it('does not load chat history into state', async () => {

@@ -70,7 +70,7 @@ export interface ChatMessage {
 
 // ─── Readiness ────────────────────────────────────────────────────────────────
 
-export type ChatbotBlockReason = 'no-prompt' | 'no-collections' | 'no-directories' | null;
+export type ChatbotBlockReason = 'no-prompt' | 'no-collections' | 'no-directories' | 'no-agent' | null;
 
 export interface SdkConfigResponse {
   agentId: string;

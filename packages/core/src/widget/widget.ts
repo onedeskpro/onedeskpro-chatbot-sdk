@@ -684,7 +684,7 @@ export class ChatWidget {
     }
   }
 
-  showBlocked(reason: ChatbotBlockReason): void {
+  showBlocked(reason: ChatbotBlockReason, description?: string): void {
     this.setPanelMode('compact');
     this.closeCountryPopover();
     this.identifyContainer.classList.remove('visible');
@@ -706,16 +706,24 @@ export class ChatWidget {
     if (reason === 'no-prompt') {
       iconEl.innerHTML = fileTextIcon();
       title.textContent = 'Business Context Required';
-      desc.textContent = 'Add a system prompt for this agent in the admin panel.';
+      desc.textContent = description ?? 'Add a system prompt for this agent in the admin panel.';
+    } else if (reason === 'no-agent') {
+      iconEl.innerHTML = settingsIcon();
+      title.textContent = 'Channel Not Connected';
+      desc.textContent =
+        description ??
+        'Connect this Website channel under AI Agents → Connected Channels.';
     } else if (reason === 'no-directories' || reason === 'no-collections') {
       iconEl.innerHTML = fileTextIcon();
       title.textContent = 'Knowledge Base Required';
       desc.textContent =
+        description ??
         'Assign at least one knowledge-base collection to this agent in the admin panel.';
     } else {
       iconEl.innerHTML = settingsIcon();
       title.textContent = 'Chatbot Settings Required';
       desc.textContent =
+        description ??
         'The chatbot has not been configured yet. Please set it up in the admin panel.';
     }
 
