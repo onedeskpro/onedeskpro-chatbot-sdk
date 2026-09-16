@@ -9,6 +9,11 @@ export interface SdkSocketConnectOptions {
   onTicketStatus?: (payload: TicketStatusData) => void;
   /** Raw inbox-shaped payload from `message:receive` (mapped in ChatbotCore later). */
   onMessageReceive?: (payload: unknown) => void;
+  /**
+   * Fired on socket.io `connect` after the first successful connection
+   * (i.e. reconnect). Callers should re-fetch ticket status — no history backfill.
+   */
+  onReconnect?: () => void;
   onConnectError?: (error: Error) => void;
 }
 
@@ -49,6 +54,15 @@ export class SdkSocket {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
+    });
+
+    let hasConnectedOnce = false;
+    this.socket.on('connect', () => {
+      if (hasConnectedOnce) {
+        opts.onReconnect?.();
+        return;
+      }
+      hasConnectedOnce = true;
     });
 
     this.socket.on('ticket:status', (payload: TicketStatusData) => {

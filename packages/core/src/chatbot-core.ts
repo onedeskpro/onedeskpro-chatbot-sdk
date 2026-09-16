@@ -81,6 +81,13 @@ export class ChatbotCore {
   private options!: Required<ChatbotInitOptions>;
   private callerSetName = false;
   /**
+   * True once this session has an open (or recently closed) ticket episode —
+   * from ticket-status `conversationId`, a non-ai mode, or a successful chat
+   * round-trip. Gates the request-human control so visitors cannot escalate
+   * before a ticket exists.
+   */
+  private hasActiveTicket = false;
+  /**
    * Bumped by every init() and by destroy(). An async init compares the token it
    * started with against this before touching anything, so a superseded run — a
    * React StrictMode remount, or a caller re-initialising — quietly stands down
@@ -112,11 +119,32 @@ export class ChatbotCore {
   }
 
   private applyMode(mode: ChatbotTicketMode, ticketStatus?: TicketStatusData): void {
+    if (ticketStatus) {
+      this.syncHasActiveTicket(ticketStatus);
+    } else if (mode !== 'ai') {
+      this.hasActiveTicket = true;
+    }
     this.setState({ mode });
-    this.widget?.setMode(mode, ticketStatus?.agentName);
+    this.syncWidgetMode(mode, ticketStatus?.agentName);
     if (ticketStatus) {
       this.emitter.emit('ticket-status', ticketStatus);
     }
+  }
+
+  /** Derive ticket existence from status restore / socket pushes. */
+  private syncHasActiveTicket(status: TicketStatusData): void {
+    if (status.conversationId || status.mode !== 'ai') {
+      this.hasActiveTicket = true;
+    } else {
+      this.hasActiveTicket = false;
+    }
+  }
+
+  private syncWidgetMode(mode: ChatbotTicketMode, agentName?: string | null): void {
+    this.widget?.setMode(mode, {
+      agentName,
+      canRequestHuman: mode === 'ai' && this.hasActiveTicket,
+    });
   }
 
   async init(options: ChatbotInitOptions): Promise<void> {
@@ -140,6 +168,7 @@ export class ChatbotCore {
       timeoutMs: this.options.requestTimeoutMs,
     });
 
+    this.hasActiveTicket = false;
     this.setState({
       visitorToken: null,
       visitorName: null,
@@ -278,6 +307,10 @@ export class ChatbotCore {
       visitorToken,
       onTicketStatus: (payload) => this.handleTicketStatus(payload),
       onMessageReceive: (payload) => this.handleMessageReceive(payload),
+      onReconnect: () => {
+        const token = this.visitorTokens.get() ?? this._state.visitorToken;
+        if (token) void this.restoreTicketStatus(token, this.initToken);
+      },
       onConnectError: (error) => {
         this.emitter.emit('error', error);
       },
@@ -305,12 +338,26 @@ export class ChatbotCore {
     this.applyMode(payload.mode, payload);
   }
 
+  /**
+   * Live human (agent) pushes from `/sdk` `message:receive`.
+   *
+   * Choice: ignore while `mode === 'ai'`. Website outbound (including AI n8n
+   * replies) is fanned out to the visitor room; AI text already arrives via
+   * `POST /sdk/chat` REST and would double-render as an `agent` bubble. Accept
+   * pushes in `waiting` / `human` / `closed` (late agent messages after close).
+   * Also dedupe against the last ai/agent bubble by content.
+   */
   private handleMessageReceive(payload: unknown): void {
+    if (this._state.mode === 'ai') return;
+
     const content = extractAgentText(payload);
     if (!content) return;
 
     const last = this._state.messages[this._state.messages.length - 1];
-    if (last?.message.type === 'agent' && last.message.content === content) {
+    if (
+      (last?.message.type === 'agent' || last?.message.type === 'ai') &&
+      last.message.content === content
+    ) {
       return;
     }
 
@@ -357,7 +404,14 @@ export class ChatbotCore {
    * Escalate the open AI ticket to Unassigned. No-op unless the widget is in `ai` mode.
    */
   async requestHuman(): Promise<void> {
-    if (!this.apiClient || this._state.mode !== 'ai' || this._state.isLoading) return;
+    if (
+      !this.apiClient ||
+      this._state.mode !== 'ai' ||
+      !this.hasActiveTicket ||
+      this._state.isLoading
+    ) {
+      return;
+    }
 
     const visitorToken = this.visitorTokens.get() ?? this._state.visitorToken;
     if (!visitorToken) {
@@ -397,22 +451,26 @@ export class ChatbotCore {
       sessionId: visitorToken,
       message: { type: 'human', content },
     };
+    const modeAtSend = this._state.mode;
+    // Typing / AI-wait spinner only makes sense while AI owns the episode.
+    const showTyping = modeAtSend === 'ai';
     this.setState({
       messages: [...this._state.messages, optimistic],
       isLoading: true,
       error: null,
     });
     this.widget?.appendMessage(optimistic);
-    this.widget?.setLoading(true);
+    if (showTyping) this.widget?.setLoading(true);
     this.emitter.emit('message', optimistic);
-
-    const modeAtSend = this._state.mode;
 
     try {
       const response = await this.apiClient.sendMessage({
         chatInput: content,
         visitorToken,
       });
+
+      // Successful chat creates or continues a ticket episode.
+      this.hasActiveTicket = true;
 
       const nextMode = response.mode ?? modeAtSend;
       const messages = [...this._state.messages];
@@ -426,7 +484,7 @@ export class ChatbotCore {
         messages.push(aiMsg);
         this.setState({ messages, isLoading: false, mode: nextMode });
         this.widget?.appendMessage(aiMsg);
-        this.widget?.setMode(nextMode);
+        this.syncWidgetMode(nextMode);
         this.emitter.emit('message', aiMsg);
       } else {
         // waiting | human — persist inbound only; skip empty AI text bubbles
@@ -440,11 +498,11 @@ export class ChatbotCore {
           messages.push(aiMsg);
           this.setState({ messages, isLoading: false, mode: nextMode });
           this.widget?.appendMessage(aiMsg);
-          this.widget?.setMode(nextMode);
+          this.syncWidgetMode(nextMode);
           this.emitter.emit('message', aiMsg);
         } else {
           this.setState({ isLoading: false, mode: nextMode });
-          this.widget?.setMode(nextMode);
+          this.syncWidgetMode(nextMode);
         }
       }
 
@@ -469,9 +527,10 @@ export class ChatbotCore {
   resetSession(): void {
     if (!this._state.isReady || this._state.needsIdentify) return;
     if (this._state.mode !== 'closed') return;
+    this.hasActiveTicket = false;
     this.setState({ messages: [], error: null, mode: 'ai' });
     this.widget?.clearMessages(this.options.chatbotName);
-    this.widget?.setMode('ai');
+    this.syncWidgetMode('ai');
     this.emitter.emit('session-reset');
   }
 

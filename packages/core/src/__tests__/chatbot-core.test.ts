@@ -324,7 +324,10 @@ describe('ChatbotCore', () => {
   describe('requestHuman', () => {
     it('escalates from ai to waiting and emits events', async () => {
       seedVisitor();
-      stubApi({ humanRequest: { mode: 'waiting', conversationId: 'c1' } });
+      stubApi({
+        ticketStatus: { mode: 'ai', conversationId: 'c1' },
+        humanRequest: { mode: 'waiting', conversationId: 'c1' },
+      });
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
       const statuses: Array<{ mode: string }> = [];
@@ -340,7 +343,7 @@ describe('ChatbotCore', () => {
     it('does nothing when not in ai mode', async () => {
       seedVisitor();
       stubApi({
-        ticketStatus: { mode: 'waiting' },
+        ticketStatus: { mode: 'waiting', conversationId: 'c1' },
         humanRequest: { mode: 'human' },
       });
       const c = new ChatbotCore();
@@ -348,6 +351,21 @@ describe('ChatbotCore', () => {
       expect(c.getState().mode).toBe('waiting');
       await c.requestHuman();
       expect(c.getState().mode).toBe('waiting');
+    });
+
+    it('does nothing before a ticket exists', async () => {
+      seedVisitor();
+      stubApi({
+        ticketStatus: { mode: 'ai' },
+        humanRequest: { mode: 'waiting', conversationId: 'c1' },
+      });
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      let requested = false;
+      c.on('human-requested', () => { requested = true; });
+      await c.requestHuman();
+      expect(c.getState().mode).toBe('ai');
+      expect(requested).toBe(false);
     });
   });
 

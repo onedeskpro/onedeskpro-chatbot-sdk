@@ -763,11 +763,17 @@ export class ChatWidget {
 
   /**
    * Sync header controls, compose lock, and status banner with ticket mode.
+   * `canRequestHuman` is decided by ChatbotCore (`mode === 'ai' && hasActiveTicket`).
    */
-  setMode(mode: ChatbotTicketMode, agentName?: string | null): void {
+  setMode(
+    mode: ChatbotTicketMode,
+    options?: { agentName?: string | null; canRequestHuman?: boolean },
+  ): void {
     const inChat = this.panel.classList.contains('ttcb-mode-chat');
+    const agentName = options?.agentName;
+    const canRequestHuman = options?.canRequestHuman === true;
 
-    const showRequestHuman = inChat && mode === 'ai';
+    const showRequestHuman = inChat && canRequestHuman;
     const showNewSession = inChat && mode === 'closed';
     const closed = mode === 'closed';
 
