@@ -131,7 +131,11 @@ describe('useChatbot', () => {
 });
 
 describe('ChatbotHeadless', () => {
-  beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; });
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '';
+    localStorage.setItem('onedeskpro_visitor_token:a', 'sv_test_token');
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('drives custom UI through render props', async () => {
