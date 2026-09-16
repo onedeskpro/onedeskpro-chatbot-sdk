@@ -113,7 +113,7 @@ export class ChatbotCore {
 
   private applyMode(mode: ChatbotTicketMode, ticketStatus?: TicketStatusData): void {
     this.setState({ mode });
-    this.widget?.setMode(mode);
+    this.widget?.setMode(mode, ticketStatus?.agentName);
     if (ticketStatus) {
       this.emitter.emit('ticket-status', ticketStatus);
     }
@@ -162,6 +162,7 @@ export class ChatbotCore {
           this.emitter.emit('close');
         },
         onReset: () => this.resetSession(),
+        onRequestHuman: () => void this.requestHuman(),
       });
     }
 

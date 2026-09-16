@@ -24,6 +24,7 @@ describe('ChatWidget input focus after send', () => {
         onOpen: () => {},
         onClose: () => {},
         onReset: () => {},
+        onRequestHuman: () => {},
       },
     );
     widget.readyToChat({ apiKey: 'test', chatbotName: 'Test' });

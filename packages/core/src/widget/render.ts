@@ -197,26 +197,50 @@ export function starsIcon(): string {
   </svg>`;
 }
 
+export function requestHumanIcon(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>`;
+}
+
 export function buildMessageEl(content: string, type: 'human' | 'ai' | 'agent'): HTMLElement {
   const wrapper = document.createElement('div');
-  // Agent bubbles reuse the AI layout until Task 7 adds dedicated human-agent styling.
-  const visualType = type === 'human' ? 'human' : 'ai';
-  wrapper.className = `ttcb-msg ${visualType}`;
+  wrapper.className = `ttcb-msg ${type}`;
 
   const avatar = document.createElement('div');
   avatar.className = 'ttcb-msg-avatar';
-  avatar.innerHTML = visualType === 'human' ? userIcon() : botIcon();
+  if (type === 'human') {
+    avatar.innerHTML = userIcon();
+  } else if (type === 'agent') {
+    avatar.innerHTML = personIcon();
+  } else {
+    avatar.innerHTML = botIcon();
+  }
+
+  const column = document.createElement('div');
+  column.className = 'ttcb-msg-body';
+
+  if (type === 'agent') {
+    const label = document.createElement('span');
+    label.className = 'ttcb-msg-label';
+    label.textContent = 'Agent';
+    column.appendChild(label);
+  }
 
   const bubble = document.createElement('div');
   bubble.className = 'ttcb-bubble';
-  if (visualType === 'human') {
+  if (type === 'human') {
     bubble.textContent = content;
   } else {
     bubble.innerHTML = parseMarkdown(content);
   }
+  column.appendChild(bubble);
 
   wrapper.appendChild(avatar);
-  wrapper.appendChild(bubble);
+  wrapper.appendChild(column);
   return wrapper;
 }
 

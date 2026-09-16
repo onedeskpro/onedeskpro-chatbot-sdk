@@ -24,6 +24,7 @@ import {
   fileTextIcon,
   newSessionIcon,
   personIcon,
+  requestHumanIcon,
   sendIcon,
   settingsIcon,
   shieldCheckIcon,
@@ -37,6 +38,7 @@ export interface WidgetCallbacks {
   onOpen: () => void;
   onClose: () => void;
   onReset: () => void;
+  onRequestHuman: () => void;
 }
 
 type PanelMode = 'form' | 'chat' | 'compact';
@@ -50,6 +52,8 @@ export class ChatWidget {
   private footer!: HTMLElement;
   private headerTitle!: HTMLElement;
   private newSessionBtn!: HTMLButtonElement;
+  private requestHumanBtn!: HTMLButtonElement;
+  private modeBanner!: HTMLElement;
   private input!: HTMLInputElement;
   private sendBtn!: HTMLButtonElement;
   private nameInput!: HTMLInputElement;
@@ -113,6 +117,11 @@ export class ChatWidget {
     this.messagesContainer.setAttribute('aria-live', 'polite');
     this.messagesContainer.setAttribute('aria-label', 'Chat messages');
     this.panel.appendChild(this.messagesContainer);
+
+    this.modeBanner = document.createElement('div');
+    this.modeBanner.className = 'ttcb-mode-banner';
+    this.modeBanner.setAttribute('role', 'status');
+    this.panel.appendChild(this.modeBanner);
 
     this.footer = document.createElement('div');
     this.footer.className = 'ttcb-footer';
@@ -206,6 +215,16 @@ export class ChatWidget {
 
     const actions = document.createElement('div');
     actions.className = 'ttcb-header-actions';
+
+    this.requestHumanBtn = document.createElement('button');
+    this.requestHumanBtn.type = 'button';
+    this.requestHumanBtn.className = 'ttcb-request-human-btn hidden';
+    this.requestHumanBtn.id = 'ttcb-request-human-btn';
+    this.requestHumanBtn.setAttribute('aria-label', 'Request human agent');
+    this.requestHumanBtn.title = 'Request human agent';
+    this.requestHumanBtn.innerHTML = requestHumanIcon();
+    this.requestHumanBtn.addEventListener('click', () => this.callbacks.onRequestHuman());
+
     this.newSessionBtn = document.createElement('button');
     this.newSessionBtn.className = 'ttcb-new-session-btn hidden';
     this.newSessionBtn.setAttribute('aria-label', 'New conversation');
@@ -219,6 +238,7 @@ export class ChatWidget {
     closeBtn.innerHTML = closeIcon();
     closeBtn.addEventListener('click', () => this.close());
 
+    actions.appendChild(this.requestHumanBtn);
     actions.appendChild(this.newSessionBtn);
     actions.appendChild(closeBtn);
 
@@ -231,10 +251,10 @@ export class ChatWidget {
   private setPanelMode(mode: PanelMode): void {
     this.panel.classList.remove('ttcb-mode-form', 'ttcb-mode-chat', 'ttcb-mode-compact');
     this.panel.classList.add(`ttcb-mode-${mode}`);
-    if (mode === 'chat') {
-      this.newSessionBtn.classList.remove('hidden');
-    } else {
+    if (mode !== 'chat') {
+      this.requestHumanBtn.classList.add('hidden');
       this.newSessionBtn.classList.add('hidden');
+      this.hideModeBanner();
     }
   }
 
@@ -676,8 +696,6 @@ export class ChatWidget {
     this.messagesContainer.classList.remove('hidden');
     this.footer.classList.remove('hidden');
     this.messagesContainer.innerHTML = '';
-    this.input.disabled = false;
-    this.sendBtn.disabled = false;
     if (options.chatbotName) {
       this.headerTitle.textContent = options.chatbotName;
     }
@@ -686,6 +704,7 @@ export class ChatWidget {
     } else {
       this.showEmptyState(options.chatbotName ?? 'AI Assistant');
     }
+    this.setMode('ai');
   }
 
   showBlocked(reason: ChatbotBlockReason, description?: string): void {
@@ -743,16 +762,49 @@ export class ChatWidget {
   }
 
   /**
-   * Minimal compose lock for closed tickets. Task 7 expands banners / icon visibility.
+   * Sync header controls, compose lock, and status banner with ticket mode.
    */
-  setMode(mode: ChatbotTicketMode): void {
+  setMode(mode: ChatbotTicketMode, agentName?: string | null): void {
+    const inChat = this.panel.classList.contains('ttcb-mode-chat');
+
+    const showRequestHuman = inChat && mode === 'ai';
+    const showNewSession = inChat && mode === 'closed';
     const closed = mode === 'closed';
+
+    this.requestHumanBtn.classList.toggle('hidden', !showRequestHuman);
+    this.newSessionBtn.classList.toggle('hidden', !showNewSession);
+
     this.input.disabled = closed;
     if (closed) {
       this.sendBtn.disabled = true;
     } else if (!this.shadow.getElementById('ttcb-typing')) {
       this.sendBtn.disabled = false;
     }
+
+    if (!inChat) {
+      this.hideModeBanner();
+      return;
+    }
+
+    if (mode === 'waiting') {
+      this.showModeBanner('Waiting for a human agent…', 'waiting');
+    } else if (mode === 'closed') {
+      this.showModeBanner('This conversation is closed', 'closed');
+    } else if (mode === 'human' && agentName?.trim()) {
+      this.showModeBanner(`Connected with ${agentName.trim()}`, 'human');
+    } else {
+      this.hideModeBanner();
+    }
+  }
+
+  private showModeBanner(text: string, kind: 'waiting' | 'human' | 'closed'): void {
+    this.modeBanner.textContent = text;
+    this.modeBanner.className = `ttcb-mode-banner visible ${kind}`;
+  }
+
+  private hideModeBanner(): void {
+    this.modeBanner.textContent = '';
+    this.modeBanner.className = 'ttcb-mode-banner';
   }
 
   destroy(): void {
