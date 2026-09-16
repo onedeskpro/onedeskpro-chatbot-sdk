@@ -22,9 +22,8 @@ Added ticket-mode shared types, `ApiClient.requestHuman` / `fetchTicketStatus`, 
 
 ## Commit
 
-```
-feat(sdk): add ticket mode types, human-request client, and /sdk socket helper
-```
+- SHA: `078c07c`
+- Message: `feat(sdk): add ticket mode types, human-request client, and /sdk socket helper`
 
 ## Verify
 
