@@ -573,7 +573,7 @@ export class ChatWidget {
     });
   }
 
-  appendMessage(msg: { type: 'human' | 'ai'; content: string } | ChatMessage): void {
+  appendMessage(msg: { type: 'human' | 'ai' | 'agent'; content: string } | ChatMessage): void {
     this.removeEmptyState();
     const data = 'message' in msg ? msg.message : msg;
     const el = buildMessageEl(data.content, data.type);

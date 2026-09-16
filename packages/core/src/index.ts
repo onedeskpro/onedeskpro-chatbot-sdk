@@ -4,10 +4,13 @@ export { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS, isChatbotRequestError } from './
 export type { ChatbotRequestError } from './api-client';
 export { EventEmitter } from './event-emitter';
 export { SessionManager } from './session-manager';
+export { SdkSocket, resolveSdkSocketUrl } from './sdk-socket';
+export type { SdkSocketConnectOptions } from './sdk-socket';
 export type {
   ChatbotInitOptions,
   ChatbotState,
   ChatbotEventMap,
+  ChatbotTicketMode,
   ChatMessage,
   ApiError,
   ApiResponse,
@@ -18,6 +21,7 @@ export type {
   VisitorVerifyResponse,
   SdkConfigResponse,
   ChatbotBlockReason,
+  TicketStatusData,
 } from '@onedeskpro/chatbot-types';
 
 // ─── IIFE / CDN global singleton ──────────────────────────────────────────────

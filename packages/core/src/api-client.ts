@@ -6,6 +6,7 @@ import type {
   IdentifyRequest,
   IdentifyResponseData,
   SdkConfigResponse,
+  TicketStatusData,
   VisitorVerifyResponse,
 } from '@onedeskpro/chatbot-types';
 
@@ -167,5 +168,15 @@ export class ApiClient {
 
   async fetchConfig(): Promise<SdkConfigResponse> {
     return this.request<SdkConfigResponse>('GET', '/sdk/config');
+  }
+
+  async requestHuman(visitorToken: string): Promise<TicketStatusData> {
+    return this.request<TicketStatusData>('POST', '/sdk/human-request', { visitorToken });
+  }
+
+  async fetchTicketStatus(visitorToken: string): Promise<TicketStatusData> {
+    return this.request<TicketStatusData>('GET', '/sdk/ticket-status', undefined, undefined, {
+      'X-Visitor-Token': visitorToken,
+    });
   }
 }

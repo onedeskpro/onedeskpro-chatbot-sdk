@@ -68,6 +68,7 @@ export class ChatbotCore {
     visitorToken: null,
     visitorName: null,
     error: null,
+    mode: 'ai',
   };
 
   /**

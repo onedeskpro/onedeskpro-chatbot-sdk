@@ -15,4 +15,6 @@ export type {
   ChatbotState,
   ChatMessage,
   ChatbotEventMap,
+  ChatbotTicketMode,
+  TicketStatusData,
 } from '@onedeskpro/chatbot-types';

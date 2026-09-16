@@ -54,16 +54,27 @@ export interface ChatRequest {
   visitorToken: string;
 }
 
+/** Widget / bridge episode mode for AI vs human takeover. */
+export type ChatbotTicketMode = 'ai' | 'waiting' | 'human' | 'closed';
+
 export interface ChatResponseData {
   text: string;
   sessionId: string;
+  mode: ChatbotTicketMode;
+}
+
+/** Shared shape for `POST /sdk/human-request`, `GET /sdk/ticket-status`, and `ticket:status`. */
+export interface TicketStatusData {
+  mode: ChatbotTicketMode;
+  conversationId?: string;
+  agentName?: string;
 }
 
 export interface ChatMessage {
   id: number;
   sessionId: string;
   message: {
-    type: 'human' | 'ai';
+    type: 'human' | 'ai' | 'agent';
     content: string;
   };
 }
@@ -95,6 +106,10 @@ export type ChatbotEventMap = {
   error: Error;
   'session-reset': void;
   ready: void;
+  /** Fired after a successful `POST /sdk/human-request`. */
+  'human-requested': void;
+  /** Fired when ticket mode changes via REST restore or `/sdk` socket push. */
+  'ticket-status': TicketStatusData;
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -109,4 +124,6 @@ export interface ChatbotState {
   visitorToken: string | null;
   visitorName: string | null;
   error: string | null;
+  /** Current ticket episode mode (`ai` until human takeover is wired in Task 6). */
+  mode: ChatbotTicketMode;
 }

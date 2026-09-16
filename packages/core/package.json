@@ -55,7 +55,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@onedeskpro/chatbot-types": "workspace:*"
+    "@onedeskpro/chatbot-types": "workspace:*",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "jsdom": "^25",

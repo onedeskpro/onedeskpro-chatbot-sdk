@@ -197,17 +197,19 @@ export function starsIcon(): string {
   </svg>`;
 }
 
-export function buildMessageEl(content: string, type: 'human' | 'ai'): HTMLElement {
+export function buildMessageEl(content: string, type: 'human' | 'ai' | 'agent'): HTMLElement {
   const wrapper = document.createElement('div');
-  wrapper.className = `ttcb-msg ${type}`;
+  // Agent bubbles reuse the AI layout until Task 7 adds dedicated human-agent styling.
+  const visualType = type === 'human' ? 'human' : 'ai';
+  wrapper.className = `ttcb-msg ${visualType}`;
 
   const avatar = document.createElement('div');
   avatar.className = 'ttcb-msg-avatar';
-  avatar.innerHTML = type === 'human' ? userIcon() : botIcon();
+  avatar.innerHTML = visualType === 'human' ? userIcon() : botIcon();
 
   const bubble = document.createElement('div');
   bubble.className = 'ttcb-bubble';
-  if (type === 'human') {
+  if (visualType === 'human') {
     bubble.textContent = content;
   } else {
     bubble.innerHTML = parseMarkdown(content);

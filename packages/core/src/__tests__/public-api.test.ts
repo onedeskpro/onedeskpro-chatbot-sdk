@@ -12,7 +12,10 @@ describe('public API', () => {
       'DEFAULT_REQUEST_TIMEOUT_MS',
       'EventEmitter',
       'OnedeskProChatbot',
+      'SdkSocket',
       'SessionManager',
+      'isChatbotRequestError',
+      'resolveSdkSocketUrl',
     ]);
   });
 
