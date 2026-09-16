@@ -2,13 +2,16 @@ import type {
   ChatbotEventMap,
   ChatbotInitOptions,
   ChatbotState,
+  ChatbotTicketMode,
   ChatMessage,
   IdentifyRequest,
   SdkConfigResponse,
+  TicketStatusData,
 } from '@onedeskpro/chatbot-types';
 import { ApiClient, DEFAULT_REQUEST_TIMEOUT_MS, isChatbotRequestError } from './api-client';
 import { DEFAULT_API_BASE_URL } from './constants';
 import { EventEmitter } from './event-emitter';
+import { SdkSocket } from './sdk-socket';
 import { VisitorTokenManager } from './session-manager';
 import { ChatWidget } from './widget/widget';
 
@@ -43,11 +46,38 @@ function definedOnly(options: ChatbotInitOptions): Partial<ChatbotInitOptions> {
 let nextLocalId = 0;
 const localMessageId = (): number => Date.now() * 1000 + (nextLocalId++ % 1000);
 
+/**
+ * Pull agent text from an inbox-shaped `message:receive` payload (`textMessage`)
+ * or a few simpler shapes used in tests / future lean events.
+ */
+function extractAgentText(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+
+  if (typeof record.textMessage === 'string' && record.textMessage.trim()) {
+    return record.textMessage.trim();
+  }
+  if (typeof record.content === 'string' && record.content.trim()) {
+    return record.content.trim();
+  }
+  if (record.message && typeof record.message === 'object') {
+    const nested = record.message as Record<string, unknown>;
+    if (typeof nested.content === 'string' && nested.content.trim()) {
+      return nested.content.trim();
+    }
+    if (typeof nested.textMessage === 'string' && nested.textMessage.trim()) {
+      return nested.textMessage.trim();
+    }
+  }
+  return null;
+}
+
 export class ChatbotCore {
   private apiClient!: ApiClient;
   private emitter = new EventEmitter();
   private visitorTokens = new VisitorTokenManager();
   private widget: ChatWidget | null = null;
+  private sdkSocket: SdkSocket | null = null;
   private options!: Required<ChatbotInitOptions>;
   private callerSetName = false;
   /**
@@ -81,6 +111,14 @@ export class ChatbotCore {
     this.emitter.emit('state-change', this._state);
   }
 
+  private applyMode(mode: ChatbotTicketMode, ticketStatus?: TicketStatusData): void {
+    this.setState({ mode });
+    this.widget?.setMode(mode);
+    if (ticketStatus) {
+      this.emitter.emit('ticket-status', ticketStatus);
+    }
+  }
+
   async init(options: ChatbotInitOptions): Promise<void> {
     if (!options.apiKey) {
       throw new Error('[onedeskpro-chatbot] `apiKey` is required to initialise the chatbot.');
@@ -89,6 +127,7 @@ export class ChatbotCore {
     const token = ++this.initToken;
 
     // Re-initialising must not orphan the previous widget in the DOM.
+    this.disconnectSdkSocket();
     this.widget?.destroy();
     this.widget = null;
 
@@ -107,6 +146,7 @@ export class ChatbotCore {
       needsIdentify: true,
       messages: [],
       error: null,
+      mode: 'ai',
     });
 
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -196,7 +236,7 @@ export class ChatbotCore {
         const result = await this.apiClient.verifyVisitor(stored);
         if (token !== this.initToken) return;
         if (result.valid) {
-          this.enterChat(stored, result.name);
+          await this.enterChat(stored, result.name, token);
           return;
         }
       } catch {
@@ -209,7 +249,11 @@ export class ChatbotCore {
     this.widget?.showIdentifyForm(this.options);
   }
 
-  private enterChat(visitorToken: string, visitorName: string | null): void {
+  private async enterChat(
+    visitorToken: string,
+    visitorName: string | null,
+    token = this.initToken,
+  ): Promise<void> {
     this.visitorTokens.set(visitorToken);
     this.setState({
       visitorToken,
@@ -219,6 +263,65 @@ export class ChatbotCore {
       error: null,
     });
     this.widget?.readyToChat(this.options);
+    this.connectSdkSocket(visitorToken);
+    await this.restoreTicketStatus(visitorToken, token);
+  }
+
+  private connectSdkSocket(visitorToken: string): void {
+    if (!this.sdkSocket) {
+      this.sdkSocket = new SdkSocket();
+    }
+    this.sdkSocket.connect({
+      baseUrl: this.options.apiBaseUrl,
+      apiKey: this.options.apiKey,
+      visitorToken,
+      onTicketStatus: (payload) => this.handleTicketStatus(payload),
+      onMessageReceive: (payload) => this.handleMessageReceive(payload),
+      onConnectError: (error) => {
+        this.emitter.emit('error', error);
+      },
+    });
+  }
+
+  private disconnectSdkSocket(): void {
+    this.sdkSocket?.disconnect();
+    this.sdkSocket = null;
+  }
+
+  /** Restore episode mode after identify / verify — never hydrates messages. */
+  private async restoreTicketStatus(visitorToken: string, token: number): Promise<void> {
+    try {
+      const data = await this.apiClient.fetchTicketStatus(visitorToken);
+      if (token !== this.initToken) return;
+      this.applyMode(data.mode, data);
+    } catch {
+      // Stay on default `ai` if status is unavailable (new visitor / offline).
+    }
+  }
+
+  private handleTicketStatus(payload: TicketStatusData): void {
+    if (!payload?.mode) return;
+    this.applyMode(payload.mode, payload);
+  }
+
+  private handleMessageReceive(payload: unknown): void {
+    const content = extractAgentText(payload);
+    if (!content) return;
+
+    const last = this._state.messages[this._state.messages.length - 1];
+    if (last?.message.type === 'agent' && last.message.content === content) {
+      return;
+    }
+
+    const visitorToken = this.visitorTokens.get() ?? this._state.visitorToken ?? '';
+    const agentMsg: ChatMessage = {
+      id: localMessageId(),
+      sessionId: visitorToken,
+      message: { type: 'agent', content },
+    };
+    this.setState({ messages: [...this._state.messages, agentMsg] });
+    this.widget?.appendMessage(agentMsg);
+    this.emitter.emit('message', agentMsg);
   }
 
   async submitIdentify(payload: IdentifyRequest): Promise<void> {
@@ -237,7 +340,7 @@ export class ChatbotCore {
         phone,
         ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
       });
-      this.enterChat(response.visitorToken, name);
+      await this.enterChat(response.visitorToken, name);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.setState({ error: error.message });
@@ -249,10 +352,40 @@ export class ChatbotCore {
     }
   }
 
+  /**
+   * Escalate the open AI ticket to Unassigned. No-op unless the widget is in `ai` mode.
+   */
+  async requestHuman(): Promise<void> {
+    if (!this.apiClient || this._state.mode !== 'ai' || this._state.isLoading) return;
+
+    const visitorToken = this.visitorTokens.get() ?? this._state.visitorToken;
+    if (!visitorToken) {
+      throw new Error('[onedeskpro-chatbot] Identify before requestHuman().');
+    }
+
+    this.setState({ isLoading: true, error: null });
+    try {
+      const data = await this.apiClient.requestHuman(visitorToken);
+      this.applyMode(data.mode, data);
+      this.emitter.emit('human-requested');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.setState({ error: error.message });
+      this.emitter.emit('error', error);
+    } finally {
+      this.setState({ isLoading: false });
+    }
+  }
+
   async sendMessage(text: string): Promise<void> {
     const visitorToken = this.visitorTokens.get() ?? this._state.visitorToken;
     if (!this.apiClient || !visitorToken) {
       throw new Error('[onedeskpro-chatbot] Identify before sendMessage().');
+    }
+
+    if (this._state.mode === 'closed') {
+      this.setState({ error: 'Conversation is closed' });
+      return;
     }
 
     const content = text.trim();
@@ -272,20 +405,51 @@ export class ChatbotCore {
     this.widget?.setLoading(true);
     this.emitter.emit('message', optimistic);
 
+    const modeAtSend = this._state.mode;
+
     try {
       const response = await this.apiClient.sendMessage({
         chatInput: content,
         visitorToken,
       });
 
-      const aiMsg: ChatMessage = {
-        id: localMessageId(),
-        sessionId: response.sessionId,
-        message: { type: 'ai', content: response.text },
-      };
-      this.setState({ messages: [...this._state.messages, aiMsg], isLoading: false });
-      this.widget?.appendMessage(aiMsg);
-      this.emitter.emit('message', aiMsg);
+      const nextMode = response.mode ?? modeAtSend;
+      const messages = [...this._state.messages];
+
+      if (modeAtSend === 'ai') {
+        const aiMsg: ChatMessage = {
+          id: localMessageId(),
+          sessionId: response.sessionId,
+          message: { type: 'ai', content: response.text },
+        };
+        messages.push(aiMsg);
+        this.setState({ messages, isLoading: false, mode: nextMode });
+        this.widget?.appendMessage(aiMsg);
+        this.widget?.setMode(nextMode);
+        this.emitter.emit('message', aiMsg);
+      } else {
+        // waiting | human — persist inbound only; skip empty AI text bubbles
+        const reply = (response.text ?? '').trim();
+        if (reply) {
+          const aiMsg: ChatMessage = {
+            id: localMessageId(),
+            sessionId: response.sessionId,
+            message: { type: 'ai', content: reply },
+          };
+          messages.push(aiMsg);
+          this.setState({ messages, isLoading: false, mode: nextMode });
+          this.widget?.appendMessage(aiMsg);
+          this.widget?.setMode(nextMode);
+          this.emitter.emit('message', aiMsg);
+        } else {
+          this.setState({ isLoading: false, mode: nextMode });
+          this.widget?.setMode(nextMode);
+        }
+      }
+
+      if (nextMode !== modeAtSend) {
+        this.emitter.emit('ticket-status', { mode: nextMode });
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.setState({ error: error.message, isLoading: false });
@@ -303,8 +467,10 @@ export class ChatbotCore {
 
   resetSession(): void {
     if (!this._state.isReady || this._state.needsIdentify) return;
-    this.setState({ messages: [], error: null });
+    if (this._state.mode !== 'closed') return;
+    this.setState({ messages: [], error: null, mode: 'ai' });
     this.widget?.clearMessages(this.options.chatbotName);
+    this.widget?.setMode('ai');
     this.emitter.emit('session-reset');
   }
 
@@ -324,6 +490,7 @@ export class ChatbotCore {
    */
   destroy(): void {
     this.initToken++;
+    this.disconnectSdkSocket();
     this.widget?.destroy();
     this.widget = null;
     this.setState({ isOpen: false, isLoading: false, isReady: false, needsIdentify: true });

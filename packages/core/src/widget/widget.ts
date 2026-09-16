@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   ChatbotBlockReason,
   ChatbotInitOptions,
+  ChatbotTicketMode,
   IdentifyRequest,
 } from '@onedeskpro/chatbot-types';
 import {
@@ -595,7 +596,8 @@ export class ChatWidget {
     // Only disable the send button. Disabling the input blurs it (browser
     // behavior), which forces the user to click back after every message.
     // Concurrent sends are blocked via sendBtn.disabled + handleSend/core guards.
-    this.sendBtn.disabled = loading;
+    // Keep send disabled when compose is locked (closed mode via setMode).
+    this.sendBtn.disabled = loading || this.input.disabled;
     if (loading) {
       if (!this.shadow.getElementById('ttcb-typing')) {
         this.messagesContainer.appendChild(buildTypingIndicator());
@@ -605,7 +607,9 @@ export class ChatWidget {
     } else {
       const el = this.shadow.getElementById('ttcb-typing');
       if (el) el.remove();
-      this.input.focus();
+      if (!this.input.disabled) {
+        this.input.focus();
+      }
     }
   }
 
@@ -736,6 +740,19 @@ export class ChatWidget {
   clearMessages(name: string): void {
     this.messagesContainer.innerHTML = '';
     this.showEmptyState(name);
+  }
+
+  /**
+   * Minimal compose lock for closed tickets. Task 7 expands banners / icon visibility.
+   */
+  setMode(mode: ChatbotTicketMode): void {
+    const closed = mode === 'closed';
+    this.input.disabled = closed;
+    if (closed) {
+      this.sendBtn.disabled = true;
+    } else if (!this.shadow.getElementById('ttcb-typing')) {
+      this.sendBtn.disabled = false;
+    }
   }
 
   destroy(): void {

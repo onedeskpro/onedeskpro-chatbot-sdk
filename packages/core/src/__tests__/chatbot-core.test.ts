@@ -2,6 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatbotCore } from '../chatbot-core';
 import type { ChatbotState, ChatMessage } from '@onedeskpro/chatbot-types';
 
+vi.mock('socket.io-client', () => ({
+  io: vi.fn(() => ({
+    on: vi.fn(),
+    disconnect: vi.fn(),
+    removeAllListeners: vi.fn(),
+    connected: false,
+  })),
+}));
+
 const envelope = (data: unknown) => JSON.stringify({ statusCode: 200, message: 'ok', data });
 const VISITOR_TOKEN = 'sv_test_token';
 
@@ -10,6 +19,8 @@ interface RouteOverrides {
   visitor?: unknown;
   identify?: unknown;
   chat?: unknown;
+  ticketStatus?: unknown;
+  humanRequest?: unknown;
   chatDelayMs?: number;
 }
 
@@ -28,9 +39,17 @@ function stubApi(overrides: RouteOverrides = {}) {
       return { ok: true, status: 200, statusText: 'OK',
         text: async () => envelope(overrides.identify ?? { visitorToken: VISITOR_TOKEN }) };
     }
+    if (u.includes('/sdk/ticket-status')) {
+      return { ok: true, status: 200, statusText: 'OK',
+        text: async () => envelope(overrides.ticketStatus ?? { mode: 'ai' }) };
+    }
+    if (u.includes('/sdk/human-request')) {
+      return { ok: true, status: 200, statusText: 'OK',
+        text: async () => envelope(overrides.humanRequest ?? { mode: 'waiting' }) };
+    }
     if (overrides.chatDelayMs) await new Promise((r) => setTimeout(r, overrides.chatDelayMs));
     return { ok: true, status: 200, statusText: 'OK',
-      text: async () => envelope(overrides.chat ?? { text: 'AI reply', sessionId: 's1' }) };
+      text: async () => envelope(overrides.chat ?? { text: 'AI reply', sessionId: 's1', mode: 'ai' }) };
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -270,20 +289,90 @@ describe('ChatbotCore', () => {
   });
 
   describe('resetSession', () => {
-    it('clears messages and announces it while keeping the visitor token', async () => {
+    it('only clears when closed, then returns to ai while keeping the visitor token', async () => {
       seedVisitor();
-      stubApi();
+      stubApi({ chat: { text: 'done', sessionId: 's1', mode: 'closed' } });
       const c = new ChatbotCore();
       await c.init({ apiKey: 'k' });
       await c.sendMessage('hi');
+      expect(c.getState().mode).toBe('closed');
       const first = c.getState().visitorToken;
       let announced = false;
       c.on('session-reset', () => { announced = true; });
 
       c.resetSession();
       expect(c.getState().messages).toHaveLength(0);
+      expect(c.getState().mode).toBe('ai');
       expect(c.getState().visitorToken).toBe(first);
       expect(announced).toBe(true);
+    });
+
+    it('is a no-op while the episode is still open', async () => {
+      seedVisitor();
+      stubApi();
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      await c.sendMessage('hi');
+      let announced = false;
+      c.on('session-reset', () => { announced = true; });
+      c.resetSession();
+      expect(c.getState().messages.length).toBeGreaterThan(0);
+      expect(announced).toBe(false);
+    });
+  });
+
+  describe('requestHuman', () => {
+    it('escalates from ai to waiting and emits events', async () => {
+      seedVisitor();
+      stubApi({ humanRequest: { mode: 'waiting', conversationId: 'c1' } });
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      const statuses: Array<{ mode: string }> = [];
+      let requested = false;
+      c.on('human-requested', () => { requested = true; });
+      c.on('ticket-status', (s) => statuses.push(s));
+      await c.requestHuman();
+      expect(c.getState().mode).toBe('waiting');
+      expect(requested).toBe(true);
+      expect(statuses.some((s) => s.mode === 'waiting')).toBe(true);
+    });
+
+    it('does nothing when not in ai mode', async () => {
+      seedVisitor();
+      stubApi({
+        ticketStatus: { mode: 'waiting' },
+        humanRequest: { mode: 'human' },
+      });
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      expect(c.getState().mode).toBe('waiting');
+      await c.requestHuman();
+      expect(c.getState().mode).toBe('waiting');
+    });
+  });
+
+  describe('sendMessage modes', () => {
+    it('refuses to send when the conversation is closed', async () => {
+      seedVisitor();
+      stubApi({ ticketStatus: { mode: 'closed' } });
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      await c.sendMessage('hi');
+      expect(c.getState().messages).toHaveLength(0);
+      expect(c.getState().error).toMatch(/closed/i);
+    });
+
+    it('does not append an empty AI bubble while waiting', async () => {
+      seedVisitor();
+      stubApi({
+        ticketStatus: { mode: 'waiting' },
+        chat: { text: '', sessionId: 's1', mode: 'waiting' },
+      });
+      const c = new ChatbotCore();
+      await c.init({ apiKey: 'k' });
+      await c.sendMessage('still here');
+      expect(c.getState().messages.map((m) => m.message.type)).toEqual(['human']);
+      expect(c.getState().mode).toBe('waiting');
     });
   });
 
@@ -327,7 +416,10 @@ describe('ChatbotCore', () => {
           visitorCalls += 1;
           return ok(visitorCalls === 1 ? await held : { valid: false, name: null });
         }
-        return ok({ text: 'r', sessionId: 's' });
+        if (u.includes('/sdk/ticket-status')) {
+          return ok({ mode: 'ai' });
+        }
+        return ok({ text: 'r', sessionId: 's', mode: 'ai' });
       }));
 
       localStorage.setItem('onedeskpro_visitor_token:a', VISITOR_TOKEN);
