@@ -252,6 +252,8 @@ export function buildStyles(primaryColor: string, theme: 'light' | 'dark' | 'aut
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; margin-top: 2px;
     }
+    /* Offset past the "Agent" label so the avatar lines up with the bubble */
+    .ttcb-msg.agent .ttcb-msg-avatar { margin-top: 22px; }
     .ttcb-msg-avatar svg { width: 13px; height: 13px; fill: var(--ttcb-text-muted); }
     .ttcb-msg.agent .ttcb-msg-avatar svg { fill: none; stroke: var(--ttcb-text-muted); stroke-width: 2; }
     .ttcb-bubble {

@@ -474,41 +474,38 @@ export class ChatbotCore {
 
       const nextMode = response.mode ?? modeAtSend;
       const messages = [...this._state.messages];
+      const reply = (response.text ?? '').trim();
 
-      if (modeAtSend === 'ai') {
-        const aiMsg: ChatMessage = {
-          id: localMessageId(),
-          sessionId: response.sessionId,
-          message: { type: 'ai', content: response.text },
-        };
-        messages.push(aiMsg);
-        this.setState({ messages, isLoading: false, mode: nextMode });
-        this.widget?.appendMessage(aiMsg);
+      // Prefer server mode immediately (e.g. dashboard handed the ticket back to AI
+      // while the widget still showed "Connected with …").
+      if (nextMode !== modeAtSend) {
+        this.setState({ mode: nextMode });
         this.syncWidgetMode(nextMode);
-        this.emitter.emit('message', aiMsg);
-      } else {
-        // waiting | human — persist inbound only; skip empty AI text bubbles
-        const reply = (response.text ?? '').trim();
-        if (reply) {
+        this.emitter.emit('ticket-status', { mode: nextMode });
+      }
+
+      // AI replies arrive via REST when the episode is AI-owned. Ignore REST text
+      // while waiting/human so a stale client mode cannot double-render with
+      // `message:receive` agent bubbles.
+      if (nextMode === 'ai' && reply) {
+        const last = messages[messages.length - 1];
+        const duplicate =
+          (last?.message.type === 'agent' || last?.message.type === 'ai') &&
+          last.message.content === reply;
+        if (!duplicate) {
           const aiMsg: ChatMessage = {
             id: localMessageId(),
             sessionId: response.sessionId,
             message: { type: 'ai', content: reply },
           };
           messages.push(aiMsg);
-          this.setState({ messages, isLoading: false, mode: nextMode });
           this.widget?.appendMessage(aiMsg);
-          this.syncWidgetMode(nextMode);
           this.emitter.emit('message', aiMsg);
-        } else {
-          this.setState({ isLoading: false, mode: nextMode });
-          this.syncWidgetMode(nextMode);
         }
       }
 
-      if (nextMode !== modeAtSend) {
-        this.emitter.emit('ticket-status', { mode: nextMode });
-      }
+      this.setState({ messages, isLoading: false, mode: nextMode });
+      this.syncWidgetMode(nextMode);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.setState({ error: error.message, isLoading: false });
